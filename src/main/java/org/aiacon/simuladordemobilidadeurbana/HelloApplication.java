@@ -32,7 +32,7 @@ public class HelloApplication extends Application {
         // Configurar a simulação
         Configuration config = new Configuration();
         config.setTrafficLightMode(2); // Usar o Modelo 2 de semáforos
-        config.setVehicleGenerationRate(0.5); // Gerar veículos a cada 2 segundos, em média
+        config.setVehicleGenerationRate(1.00); // Gerar veículos a cada 2 segundos, em média
 
         // Criar o simulador e visualizador
         Simulator simulator = new Simulator(graph, config);

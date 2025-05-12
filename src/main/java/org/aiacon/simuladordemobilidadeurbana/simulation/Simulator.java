@@ -25,6 +25,7 @@ public class Simulator {
         while (time < 3600) { // Simular por 1 hora
             time += deltaTime;
 
+            validateGraph();
             // 1. Gerar novos veículos
             generateVehicles(deltaTime);
 
@@ -46,48 +47,38 @@ public class Simulator {
     }
 
     /**
+     * Valida se o grafo foi carregado corretamente antes de iniciar a simulação.
+     * Lança uma exceção se o grafo estiver vazio ou não carregado corretamente.
+     */
+    private void validateGraph() {
+        if (graph == null || graph.getNodes() == null || graph.getNodes().isEmpty()) {
+            throw new IllegalStateException("Erro: O grafo está vazio ou não foi carregado corretamente.");
+        }
+
+        System.out.println("Grafo validado com sucesso! Nós carregados: " + graph.getNodes().size());
+    }
+
+    /**
      * Gera novos veículos com base na taxa de geração configurada.
-     * Garantindo que apenas veículos com rotas válidas sejam adicionados à simulação.
+     * Garante que apenas veículos com rotas válidas sejam adicionados à simulação.
      */
     private void generateVehicles(double deltaTime) {
         int numVehiclesToGenerate = (int) (config.getVehicleGenerationRate() * deltaTime);
 
         for (int i = 0; i < numVehiclesToGenerate; i++) {
-            // Gerar os IDs de origem e destino aleatórios
-            String originId = generator.generateRandomOrigin();
-            String destinationId = generator.generateRandomDestination();
+            System.out.println("Tentando gerar veículo #" + (vehicles.size() + 1));
 
-            // Log para debug das IDs
-            System.out.println("Tentando gerar veículo com origem: " + originId + " e destino: " + destinationId);
+            Vehicle vehicle = generator.generateVehicle(vehicles.size() + 1);
 
-            // Garantir que origem e destino não sejam idênticos
-            if (originId.equals(destinationId)) {
-                System.err.println("Erro: Origem e destino são iguais. Ignorando veículo.");
-                continue;
-            }
-
-            // Calcular rota entre origem e destino
-            CustomLinkedList<String> route = Dijkstra.calculateRoute(graph, originId, destinationId);
-
-            if (route == null || route.isEmpty()) {
-                // Logar o erro se nenhuma rota for encontrada
-                System.err.println("Erro ao calcular rota para veículo: nenhuma rota encontrada entre "
-                        + originId + " e " + destinationId + ". Veículo ignorado.");
-                continue; // Ignorar este veículo
-            }
-
-            // Criar o veículo com a rota válida
-            Vehicle vehicle = generator.generateVehicle(route);
             if (vehicle == null) {
-                System.err.println("Erro: Não foi possível gerar o veículo. Ignorando.");
+                System.err.println("Falha ao gerar veículo #" + (vehicles.size() + 1) + ". Ignorando...");
                 continue;
             }
 
-            // Adicionar o veículo à simulação
             vehicles.add(vehicle);
-            System.out.println("Veículo gerado: " + vehicle.getId() +
-                    ", Origem: " + vehicle.getCurrentNode() +
-                    ", Destino: " + vehicle.getDestinationNode());
+            System.out.println("Veículo gerado com sucesso: ID = " + vehicle.getId() +
+                    ", Origem = " + vehicle.getOrigin() +
+                    ", Destino = " + vehicle.getDestination());
         }
     }
 

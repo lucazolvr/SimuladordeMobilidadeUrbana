@@ -19,6 +19,8 @@ public class VehicleGenerator {
         this.random = new Random();
     }
 
+
+
     public Vehicle generateVehicle(int id) {
         // Escolher origem e destino aleatórios
         CustomLinkedList<String> nodeIds = new CustomLinkedList<>();
