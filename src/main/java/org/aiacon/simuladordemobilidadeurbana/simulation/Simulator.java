@@ -17,15 +17,24 @@ public class Simulator {
         this.stats = new Statistics();
         this.generator = new VehicleGenerator(graph, config.getVehicleGenerationRate());
         this.time = 0.0;
+
+        // Validar o grafo ao inicializar
+        validateGraph();
+
+        // Verificar conectividade do grafo
+        if (!isGraphConnected()) {
+            throw new IllegalStateException("Erro: O grafo não está totalmente conectado. Nem todos os nós podem ser alcançados.");
+        }
     }
+
+
 
     public void run() {
         double deltaTime = 1.0; // Passo de simulação em segundos
-
+        validateGraph();
         while (time < 3600) { // Simular por 1 hora
             time += deltaTime;
 
-            validateGraph();
             // 1. Gerar novos veículos
             generateVehicles(deltaTime);
 
@@ -56,29 +65,87 @@ public class Simulator {
         }
 
         System.out.println("Grafo validado com sucesso! Nós carregados: " + graph.getNodes().size());
+
+        System.out.println("IDs dos nós carregados no grafo:");
+        for (Node node : graph.getNodes()) {
+            System.out.println("Nó ID: " + node.getId());
+        }
+
     }
+
+    private boolean isGraphConnected() {
+        if (graph == null || graph.getNodes() == null || graph.getNodes().isEmpty()) {
+            return false;
+        }
+
+        // Lista de nós visitados
+        CustomLinkedList<String> visited = new CustomLinkedList<>();
+        CustomLinkedList<String> queue = new CustomLinkedList<>();
+
+        // Começa com o primeiro nó
+        Node startNode = graph.getNodes().get(0);
+        queue.add(startNode.getId());
+
+        // Executa BFS
+        while (!queue.isEmpty()) {
+            String currentNodeId = queue.removeFirst();
+            if (!visited.contains(currentNodeId)) {
+                visited.add(currentNodeId);
+
+                // Obter todos os vizinhos do nó atual
+                Node currentNode = graph.getNode(currentNodeId);
+                if (currentNode != null) {
+                    for (Edge edge : currentNode.getEdges()) {
+                        String neighborId = edge.getDestination();
+                        if (!visited.contains(neighborId)) {
+                            queue.add(neighborId);
+                        }
+                    }
+                }
+            }
+        }
+
+        // O grafo é conectado se todos os nós foram visitados
+        return visited.size() == graph.getNodes().size();
+    }
+
 
     /**
      * Gera novos veículos com base na taxa de geração configurada.
      * Garante que apenas veículos com rotas válidas sejam adicionados à simulação.
      */
+    /**
+     * Gera novos veículos com base na taxa de geração configurada.
+     * Garante que apenas veículos com rotas válidas sejam adicionados à simulação.
+     */
+    /**
+     * Gera novos veículos com base na taxa de geração configurada.
+     * Garante que apenas veículos com rotas válidas sejam adicionados à simulação.
+     */
     private void generateVehicles(double deltaTime) {
-        int numVehiclesToGenerate = (int) (config.getVehicleGenerationRate() * deltaTime);
-
+        int numVehiclesToGenerate = (int) (deltaTime * config.getVehicleGenerationRate());
         for (int i = 0; i < numVehiclesToGenerate; i++) {
             System.out.println("Tentando gerar veículo #" + (vehicles.size() + 1));
-
             Vehicle vehicle = generator.generateVehicle(vehicles.size() + 1);
 
-            if (vehicle == null) {
-                System.err.println("Falha ao gerar veículo #" + (vehicles.size() + 1) + ". Ignorando...");
-                continue;
+            if (vehicle != null) {
+                vehicles.add(vehicle);
+                System.out.println("Veículo V" + vehicle.getId() + " adicionado à simulação com rota valida.");
+            } else {
+                System.out.println("Falha ao gerar veículo #" + (vehicles.size() + 1) + ". Ignorando...");
             }
+        }
+    }
 
-            vehicles.add(vehicle);
-            System.out.println("Veículo gerado com sucesso: ID = " + vehicle.getId() +
-                    ", Origem = " + vehicle.getOrigin() +
-                    ", Destino = " + vehicle.getDestination());
+
+    private void checkNodeConnections() {
+        System.out.println("Verificando arestas dos nós:");
+        for (Node node : graph.getNodes()) {
+            if (node.getEdges().isEmpty()) {
+                System.err.println("Nó sem arestas: " + node.getId());
+            } else {
+                System.out.println("Nó " + node.getId() + " tem " + node.getEdges().size() + " aresta(s)");
+            }
         }
     }
 
@@ -152,12 +219,38 @@ public class Simulator {
     }
 
     /**
+     * Calcula o nível de congestionamento na rede urbana.
+     * O congestionamento pode ser medido como a razão entre o número de veículos ativos
+     * e o número total de nós no grafo.
+     *
+     * @return O nível de congestionamento (ex: 0.0 = sem veículos, 1.0 = congestionamento máximo)
+     */
+    private double calculateCongestion() {
+        if (graph == null || graph.getNodes() == null || graph.getNodes().isEmpty()) {
+            throw new IllegalStateException("Erro: O grafo está vazio ou não inicializado.");
+        }
+
+        // Número total de veículos na simulação
+        int numVehicles = vehicles.size();
+
+        // Número total de nós no grafo
+        int totalNodes = graph.getNodes().size();
+
+        // Calcular o congestionamento como proporção entre veículos e nós
+        double congestion = (double) numVehicles / totalNodes;
+
+        // Garantir que o congestionamento esteja dentro de 0.0 a 1.0
+        return Math.min(congestion, 1.0);
+    }
+
+
+    /**
      * Log do estado atual da simulação.
      */
     private void logSimulationState() {
-        System.out.printf("Tempo: %.1fs, Veículos: %d, Congestionamento: %d%n",
-                time, vehicles.size(), stats.getCongestion());
+        System.out.println("Tempo: " + time + "s, Veículos: " + vehicles.size() + ", Congestionamento: " + calculateCongestion());
     }
+
 
     /**
      * Aguarda por um tempo equivalente a `deltaTime` em milissegundos.
@@ -166,7 +259,7 @@ public class Simulator {
         try {
             Thread.sleep((long) (deltaTime * 1000));
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            Thread.currentThread().interrupt();
         }
     }
 

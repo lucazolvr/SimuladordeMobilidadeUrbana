@@ -96,4 +96,9 @@ public class Edge {
         // Verifica se a aresta é bidirecional
         return !oneway;
     }
+
+    // Retorna o destino da aresta (ID do nó de destino)
+    public String getDestination() {
+        return target;
+    }
 }
