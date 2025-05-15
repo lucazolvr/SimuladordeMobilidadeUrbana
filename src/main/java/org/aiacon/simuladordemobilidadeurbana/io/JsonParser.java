@@ -81,52 +81,120 @@ public class JsonParser {
      * @param graph Instância do grafo a ser preenchida.
      */
     private static void processJson(JSONObject json, Graph graph) {
+        System.out.println("<<<<< EXECUTANDO NOVA VERSÃO DO JsonParser.processJson! >>>>>"); // Log de confirmação
         // Carregar nós no grafo
-        JSONArray nodes = json.getJSONArray("nodes");
-        for (int i = 0; i < nodes.length(); i++) {
-            JSONObject node = nodes.getJSONObject(i);
-            graph.addNode(new Node(
-                    node.getString("id"),
-                    node.getDouble("latitude"),
-                    node.getDouble("longitude"),
-                    false // Atualiza as informações do semáforo posteriormente
-            ));
+        JSONArray nodesArray = json.getJSONArray("nodes");
+        for (int i = 0; i < nodesArray.length(); i++) {
+            JSONObject nodeJson = nodesArray.getJSONObject(i);
+            Node newNode = new Node(
+                    nodeJson.getString("id"),
+                    nodeJson.getDouble("latitude"),
+                    nodeJson.getDouble("longitude"),
+                    false // isTrafficLight será atualizado depois
+            );
+            graph.addNode(newNode);
         }
+        System.out.println("Total de nós carregados no grafo: " + graph.getNodes().size());
+
 
         // Carregar arestas no grafo
-        JSONArray edges = json.getJSONArray("edges");
-        for (int i = 0; i < edges.length(); i++) {
-            JSONObject edge = edges.getJSONObject(i);
+        JSONArray edgesArray = json.getJSONArray("edges");
+        for (int i = 0; i < edgesArray.length(); i++) {
+            JSONObject edgeJson = edgesArray.getJSONObject(i);
 
-            double maxspeed = edge.getDouble("maxspeed"); // Velocidade máxima
-            double length = edge.getDouble("length"); // Comprimento da aresta
-            double travelTime = length / (maxspeed * 1000 / 3600); // Converter m/(km/h * 1000/3600) em segundos
-            int capacity = (int) (maxspeed / 10); // Cálculo aproximado para a capacidade
+            String edgeId = edgeJson.getString("id");
+            String sourceNodeId = edgeJson.getString("source");
+            String targetNodeId = edgeJson.getString("target");
+            boolean isOneWay = edgeJson.getBoolean("oneway");
+            double maxspeed = edgeJson.getDouble("maxspeed"); // km/h
+            double length = edgeJson.getDouble("length"); // metros
 
-            graph.addEdge(new Edge(
-                    edge.getString("id"),
-                    edge.getString("source"),
-                    edge.getString("target"),
+            double travelTime = 0;
+            if (maxspeed > 0) {
+                travelTime = length / (maxspeed * 1000.0 / 3600.0);
+            } else {
+                travelTime = Double.POSITIVE_INFINITY;
+            }
+
+            int capacity = (int) (maxspeed / 10);
+
+            Edge forwardEdge = new Edge(
+                    edgeId,
+                    sourceNodeId,
+                    targetNodeId,
                     length,
                     travelTime,
-                    edge.getBoolean("oneway"),
+                    isOneWay,
                     maxspeed,
                     capacity
-            ));
+            );
+
+            graph.addEdge(forwardEdge); // Adiciona à lista global do grafo
+
+            Node sourceNode = graph.getNode(sourceNodeId);
+            if (sourceNode != null) {
+                sourceNode.addEdge(forwardEdge); // Adiciona à lista de arestas do nó de origem
+                System.out.println("ARESTA_JSON_PARSER: Aresta " + forwardEdge.getId() + " (origem: " + sourceNodeId + " -> destino: " + targetNodeId + ") adicionada ao nó de ORIGEM " + sourceNodeId);
+            } else {
+                System.err.println("AVISO_JSON_PARSER: Nó de origem com ID " + sourceNodeId + " não encontrado para a aresta " + forwardEdge.getId());
+            }
+
+            if (!isOneWay) {
+                String reverseEdgeId = edgeId + "_rev";
+                Edge reverseEdge = new Edge(
+                        reverseEdgeId,
+                        targetNodeId,
+                        sourceNodeId,
+                        length,
+                        travelTime,
+                        false,      // Aresta reversa também é parte de uma via de mão dupla (oneway=false conceitualmente para a via)
+                        maxspeed,
+                        capacity
+                );
+                graph.addEdge(reverseEdge); // Adiciona reversa à lista global do grafo
+
+                Node targetNodeOriginalEdge = graph.getNode(targetNodeId); // Nó de origem da aresta reversa
+                if (targetNodeOriginalEdge != null) {
+                    targetNodeOriginalEdge.addEdge(reverseEdge); // Adiciona à lista de arestas do nó de origem da aresta reversa
+                    System.out.println("ARESTA_JSON_PARSER: Aresta REVERSA " + reverseEdge.getId() + " (origem: " + targetNodeId + " -> destino: " + sourceNodeId + ") adicionada ao nó de ORIGEM " + targetNodeId);
+                } else {
+                    System.err.println("AVISO_JSON_PARSER: Nó de destino (para origem da aresta reversa) com ID " + targetNodeId + " não encontrado para a aresta " + forwardEdge.getId());
+                }
+            }
         }
+        System.out.println("Total de arestas carregadas no grafo (incluindo reversas): " + graph.getEdges().size());
 
-        // Carregar semáforos no grafo
-        JSONArray trafficLights = json.getJSONArray("traffic_lights");
-        for (int i = 0; i < trafficLights.length(); i++) {
-            JSONObject tl = trafficLights.getJSONObject(i);
-            JSONObject attributes = tl.getJSONObject("attributes");
-            String direction = attributes.getString("traffic_signals:direction");
+        if (json.has("traffic_lights")) {
+            JSONArray trafficLightsArray = json.getJSONArray("traffic_lights");
+            for (int i = 0; i < trafficLightsArray.length(); i++) {
+                JSONObject tlJson = trafficLightsArray.getJSONObject(i);
+                String trafficLightNodeId = tlJson.getString("id");
 
-            graph.addTrafficLight(new TrafficLight(
-                    tl.getString("id"),
-                    direction,
-                    1 // Estado inicial definido como 1, pode ser ajustado pela configuração
-            ));
+                String direction = "unknown";
+                if (tlJson.has("attributes")) {
+                    JSONObject attributes = tlJson.getJSONObject("attributes");
+                    if (attributes.has("traffic_signals:direction")) {
+                        direction = attributes.getString("traffic_signals:direction");
+                    }
+                }
+
+                graph.addTrafficLight(new TrafficLight(
+                        trafficLightNodeId,
+                        direction,
+                        1
+                ));
+
+                Node trafficNode = graph.getNode(trafficLightNodeId);
+                if (trafficNode != null) {
+                    trafficNode.isTrafficLight = true; // Assumindo que o campo é público, ou adicione um setter
+                    // System.out.println("Nó " + trafficLightNodeId + " atualizado com semáforo.");
+                } else {
+                    System.err.println("AVISO_JSON_PARSER: Nó com ID " + trafficLightNodeId + " não encontrado para associar semáforo.");
+                }
+            }
+            System.out.println("Total de semáforos carregados: " + graph.getTrafficLights().size());
+        } else {
+            System.out.println("Nenhum semáforo encontrado no JSON (chave 'traffic_lights' ausente).");
         }
     }
 }
