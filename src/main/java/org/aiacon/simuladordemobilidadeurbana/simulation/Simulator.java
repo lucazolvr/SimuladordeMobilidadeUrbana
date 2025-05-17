@@ -384,16 +384,51 @@ public class Simulator {
 
     // Novo método auxiliar para encontrar uma aresta específica (usado em updateVehicle)
     private Edge findEdge(String sourceNodeId, String targetNodeId) {
-        if (sourceNodeId == null || targetNodeId == null) return null;
+        if (sourceNodeId == null) {
+            System.err.println("FIND_EDGE_ERROR: sourceNodeId é nulo. TargetNodeId: " + targetNodeId);
+            return null;
+        }
+        if (targetNodeId == null) {
+            System.err.println("FIND_EDGE_ERROR: targetNodeId é nulo. SourceNodeId: " + sourceNodeId);
+            return null;
+        }
+
         Node sourceNode = graph.getNode(sourceNodeId);
-        if (sourceNode == null || sourceNode.getEdges() == null) return null;
+
+        if (sourceNode == null) {
+            System.err.println("FIND_EDGE_ERROR: graph.getNode(sourceNodeId) retornou NULO para sourceNodeId: '" + sourceNodeId +
+                    "'. Não foi possível encontrar a aresta para targetNodeId: '" + targetNodeId + "'.");
+            return null;
+        }
+
+        if (sourceNode.getEdges() == null) {
+            System.err.println("FIND_EDGE_ERROR: Nó '" + sourceNodeId + "' foi encontrado, mas sua lista de arestas (sourceNode.getEdges()) é NULA. " +
+                    "Não é possível encontrar a aresta para targetNodeId: '" + targetNodeId + "'.");
+            return null;
+        }
 
         for (Edge edge : sourceNode.getEdges()) {
-            if (edge.getTarget().equals(targetNodeId)) { // Verifica se esta aresta vai para o nó de destino desejado
+            if (edge != null && edge.getTarget() != null && edge.getTarget().equals(targetNodeId)) {
                 return edge;
             }
         }
-        return null; // Nenhuma aresta encontrada do source para o target especificado
+
+        System.err.println("FIND_EDGE_DETAIL_FAIL: Nenhuma aresta direta de '" + sourceNodeId + "' para '" + targetNodeId +
+                "' encontrada na lista de arestas ESPECÍFICAS do nó de origem.");
+        System.err.println("    -> Arestas que realmente SAEM de '" + sourceNodeId + "' (total " +
+                (sourceNode.getEdges() != null ? sourceNode.getEdges().size() : "LISTA_NULA") + ") no grafo:");
+        if (sourceNode.getEdges() == null || sourceNode.getEdges().isEmpty()) {
+            System.err.println("        -> Nenhuma aresta de saída registrada para este nó ou lista de arestas é nula.");
+        } else {
+            for (Edge e : sourceNode.getEdges()) {
+                if (e != null) {
+                    System.err.println("        -> para '" + e.getTarget() + "' (ID da aresta: " + e.getId() + ")");
+                } else {
+                    System.err.println("        -> encontrada uma aresta NULA na lista de " + sourceNodeId);
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -592,6 +627,10 @@ public class Simulator {
         return Double.MAX_VALUE; // Inacessível
     }
 
+    public CustomLinkedList<Vehicle> getVehicles() {
+        return vehicles;
+    }
+
     /**
      * Obtém o índice da direção (norte, sul, leste, oeste).
      */
@@ -608,5 +647,7 @@ public class Simulator {
             case "west": return 3;
             default: return -1; // Direção desconhecida
         }
+
+
     }
 }
