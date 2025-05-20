@@ -7,7 +7,7 @@ import org.aiacon.simuladordemobilidadeurbana.model.Edge;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map; // Importar Map
+import java.util.Map;
 
 public class Dijkstra {
 
@@ -124,8 +124,6 @@ public class Dijkstra {
         }
         return closestNodeId;
     }
-
-    // Não precisamos mais do getNodeById, pois graph.getNode(id) é usado diretamente.
 
     private static CustomLinkedList<String> buildPath(Map<String, String> previousNodeIds, String originId, String destinationId) {
         CustomLinkedList<String> path = new CustomLinkedList<>();

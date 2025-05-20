@@ -42,4 +42,12 @@ public class Node {
     public void setIsTrafficLight(boolean isTrafficLight) {
         this.isTrafficLight = isTrafficLight;
     }
+
+    public double getLatitude() {
+        return latitude;
+    }
+
+    public double getLongitude() {
+        return longitude;
+    }
 }
