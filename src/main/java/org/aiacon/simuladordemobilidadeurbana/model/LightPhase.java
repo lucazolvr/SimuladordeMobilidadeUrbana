@@ -8,5 +8,4 @@ public enum LightPhase {
     NS_RED_EW_GREEN,  // Leste-Oeste Verde, Norte-Sul Vermelho
     NS_RED_EW_YELLOW
 
-    // Você poderia adicionar mais fases complexas se necessário (ex: setas dedicadas)
 }
