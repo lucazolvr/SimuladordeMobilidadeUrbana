@@ -1,6 +1,7 @@
 package org.aiacon.simuladordemobilidadeurbana.io;
 
 import org.aiacon.simuladordemobilidadeurbana.model.*;
+import org.aiacon.simuladordemobilidadeurbana.simulation.Configuration; // << IMPORTAR Configuration
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -15,15 +16,15 @@ public class JsonParser {
      * Método estático para carregar o grafo a partir de um arquivo JSON.
      *
      * @param filename Caminho para o arquivo JSON.
+     * @param config   Objeto de configuração da simulação. // << NOVO PARÂMETRO
      * @return Um objeto Graph carregado do JSON.
      * @throws IOException Se ocorrer um erro na leitura do arquivo.
      * @throws Exception    Se ocorrer um erro no processamento do JSON.
      */
-    public static Graph loadGraph(String filename) throws IOException, Exception {
-        Graph graph = new Graph(); // Criar uma nova instância de Graph
+    public static Graph loadGraph(String filename, Configuration config) throws IOException, Exception { // << ADICIONADO config
+        Graph graph = new Graph();
         StringBuilder jsonContent = new StringBuilder();
 
-        // Ler o arquivo JSON como texto
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -31,33 +32,28 @@ public class JsonParser {
             }
         }
 
-        // Parse do JSON
         JSONObject json = new JSONObject(jsonContent.toString());
-
-        // Carregar nós e outras estruturas do grafo
-        processJson(json, graph);
-
-        return graph; // Retorna o grafo carregado
+        processJson(json, graph, config); // << PASSAR config
+        return graph;
     }
 
     /**
      * Método estático para carregar o grafo a partir de um InputStream.
-     * Esse método é útil para carregar arquivos diretamente do classpath ou recursos.
      *
      * @param inputStream InputStream do arquivo JSON.
+     * @param config      Objeto de configuração da simulação. // << NOVO PARÂMETRO
      * @return Um objeto Graph carregado do JSON.
      * @throws IOException Se ocorrer um erro na leitura do arquivo.
      * @throws Exception    Se ocorrer um erro no processamento do JSON.
      */
-    public static Graph loadGraphFromStream(InputStream inputStream) throws IOException, Exception {
+    public static Graph loadGraphFromStream(InputStream inputStream, Configuration config) throws IOException, Exception { // << ADICIONADO config
         if (inputStream == null) {
             throw new IOException("InputStream é nulo, não foi possível localizar o arquivo JSON.");
         }
 
-        Graph graph = new Graph(); // Criar uma nova instância de Graph
+        Graph graph = new Graph();
         StringBuilder jsonContent = new StringBuilder();
 
-        // Ler o InputStream e montar o conteúdo do JSON
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -65,13 +61,9 @@ public class JsonParser {
             }
         }
 
-        // Parse do JSON
         JSONObject json = new JSONObject(jsonContent.toString());
-
-        // Carregar nós e outras estruturas do grafo
-        processJson(json, graph);
-
-        return graph; // Retorna o grafo carregado
+        processJson(json, graph, config); // << PASSAR config
+        return graph;
     }
 
     /**
@@ -79,10 +71,10 @@ public class JsonParser {
      *
      * @param json  Objeto JSON contendo os dados do grafo.
      * @param graph Instância do grafo a ser preenchida.
+     * @param config Objeto de configuração da simulação. // << NOVO PARÂMETRO
      */
-    private static void processJson(JSONObject json, Graph graph) {
-        System.out.println("<<<<< EXECUTANDO NOVA VERSÃO DO JsonParser.processJson! >>>>>"); // Log de confirmação
-        // Carregar nós no grafo
+    private static void processJson(JSONObject json, Graph graph, Configuration config) { // << ADICIONADO config
+        System.out.println("<<<<< EXECUTANDO NOVA VERSÃO DO JsonParser.processJson! >>>>>");
         JSONArray nodesArray = json.getJSONArray("nodes");
         for (int i = 0; i < nodesArray.length(); i++) {
             JSONObject nodeJson = nodesArray.getJSONObject(i);
@@ -90,50 +82,29 @@ public class JsonParser {
                     nodeJson.getString("id"),
                     nodeJson.getDouble("latitude"),
                     nodeJson.getDouble("longitude"),
-                    false // isTrafficLight será atualizado depois
+                    false
             );
             graph.addNode(newNode);
         }
         System.out.println("Total de nós carregados no grafo: " + graph.getNodes().size());
 
-
-        // Carregar arestas no grafo
         JSONArray edgesArray = json.getJSONArray("edges");
         for (int i = 0; i < edgesArray.length(); i++) {
             JSONObject edgeJson = edgesArray.getJSONObject(i);
-
             String edgeId = edgeJson.getString("id");
             String sourceNodeId = edgeJson.getString("source");
             String targetNodeId = edgeJson.getString("target");
             boolean isOneWay = edgeJson.getBoolean("oneway");
-            double maxspeed = edgeJson.getDouble("maxspeed"); // km/h
-            double length = edgeJson.getDouble("length"); // metros
+            double maxspeed = edgeJson.getDouble("maxspeed");
+            double length = edgeJson.getDouble("length");
+            double travelTime = (maxspeed > 0) ? (length / (maxspeed * 1000.0 / 3600.0)) : Double.POSITIVE_INFINITY;
+            int capacity = (int) (maxspeed / 10); // Pode necessitar de ajuste ou vir do JSON se disponível
 
-            double travelTime = 0;
-            if (maxspeed > 0) {
-                travelTime = length / (maxspeed * 1000.0 / 3600.0);
-            } else {
-                travelTime = Double.POSITIVE_INFINITY;
-            }
-
-            int capacity = (int) (maxspeed / 10);
-
-            Edge forwardEdge = new Edge(
-                    edgeId,
-                    sourceNodeId,
-                    targetNodeId,
-                    length,
-                    travelTime,
-                    isOneWay,
-                    maxspeed,
-                    capacity
-            );
-
-            graph.addEdge(forwardEdge); // Adiciona à lista global do grafo
-
+            Edge forwardEdge = new Edge(edgeId, sourceNodeId, targetNodeId, length, travelTime, isOneWay, maxspeed, capacity);
+            graph.addEdge(forwardEdge);
             Node sourceNode = graph.getNode(sourceNodeId);
             if (sourceNode != null) {
-                sourceNode.addEdge(forwardEdge); // Adiciona à lista de arestas do nó de origem
+                sourceNode.addEdge(forwardEdge);
                 System.out.println("ARESTA_JSON_PARSER: Aresta " + forwardEdge.getId() + " (origem: " + sourceNodeId + " -> destino: " + targetNodeId + ") adicionada ao nó de ORIGEM " + sourceNodeId);
             } else {
                 System.err.println("AVISO_JSON_PARSER: Nó de origem com ID " + sourceNodeId + " não encontrado para a aresta " + forwardEdge.getId());
@@ -141,21 +112,11 @@ public class JsonParser {
 
             if (!isOneWay) {
                 String reverseEdgeId = edgeId + "_rev";
-                Edge reverseEdge = new Edge(
-                        reverseEdgeId,
-                        targetNodeId,
-                        sourceNodeId,
-                        length,
-                        travelTime,
-                        false,      // Aresta reversa também é parte de uma via de mão dupla (oneway=false conceitualmente para a via)
-                        maxspeed,
-                        capacity
-                );
-                graph.addEdge(reverseEdge); // Adiciona reversa à lista global do grafo
-
-                Node targetNodeOriginalEdge = graph.getNode(targetNodeId); // Nó de origem da aresta reversa
+                Edge reverseEdge = new Edge(reverseEdgeId, targetNodeId, sourceNodeId, length, travelTime, false, maxspeed, capacity);
+                graph.addEdge(reverseEdge);
+                Node targetNodeOriginalEdge = graph.getNode(targetNodeId);
                 if (targetNodeOriginalEdge != null) {
-                    targetNodeOriginalEdge.addEdge(reverseEdge); // Adiciona à lista de arestas do nó de origem da aresta reversa
+                    targetNodeOriginalEdge.addEdge(reverseEdge);
                     System.out.println("ARESTA_JSON_PARSER: Aresta REVERSA " + reverseEdge.getId() + " (origem: " + targetNodeId + " -> destino: " + sourceNodeId + ") adicionada ao nó de ORIGEM " + targetNodeId);
                 } else {
                     System.err.println("AVISO_JSON_PARSER: Nó de destino (para origem da aresta reversa) com ID " + targetNodeId + " não encontrado para a aresta " + forwardEdge.getId());
@@ -169,7 +130,6 @@ public class JsonParser {
             for (int i = 0; i < trafficLightsArray.length(); i++) {
                 JSONObject tlJson = trafficLightsArray.getJSONObject(i);
                 String trafficLightNodeId = tlJson.getString("id");
-
                 String direction = "unknown";
                 if (tlJson.has("attributes")) {
                     JSONObject attributes = tlJson.getJSONObject("attributes");
@@ -178,16 +138,16 @@ public class JsonParser {
                     }
                 }
 
+                // Modificação aqui: Passa o objeto 'config' para o construtor de TrafficLight
                 graph.addTrafficLight(new TrafficLight(
                         trafficLightNodeId,
                         direction,
-                        1
+                        config // << PASSANDO O OBJETO CONFIGURATION
                 ));
 
                 Node trafficNode = graph.getNode(trafficLightNodeId);
                 if (trafficNode != null) {
-                    trafficNode.isTrafficLight = true; // Assumindo que o campo é público, ou adicione um setter
-                    // System.out.println("Nó " + trafficLightNodeId + " atualizado com semáforo.");
+                    trafficNode.isTrafficLight = true;
                 } else {
                     System.err.println("AVISO_JSON_PARSER: Nó com ID " + trafficLightNodeId + " não encontrado para associar semáforo.");
                 }

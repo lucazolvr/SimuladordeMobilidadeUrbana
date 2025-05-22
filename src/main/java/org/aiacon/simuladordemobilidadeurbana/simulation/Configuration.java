@@ -1,50 +1,56 @@
 package org.aiacon.simuladordemobilidadeurbana.simulation;
 
-/**
- * Configurações da simulação, como taxas de geração de veículos,
- * durações de semáforos e modos de operação.
- */
 public class Configuration {
-    private double vehicleGenerationRate; // Veículos por segundo
-    private double simulationDuration;    // Duração total da simulação em segundos
-    private int trafficLightMode;         // 1: Fixo, 2: Adaptativo por Fila, 3: Economia
-    private int redirectThreshold;        // Número de veículos na fila para considerar redirecionamento
-    private boolean peakHour;             // Indica se é horário de pico
+    private double vehicleGenerationRate;
+    private double simulationDuration;
+    private int trafficLightMode;
+    private int redirectThreshold;
+    private boolean peakHour;
 
-    // Novos tempos para FixedTimeStrategy (exemplos)
-    private double fixedGreenTime = 15.0;
-    private double fixedYellowTime = 3.0;
+    private double fixedGreenTime;
+    private double fixedYellowTime;
 
-    // Novos tempos para AdaptiveQueueStrategy (exemplos)
-    private double adaptiveBaseGreen = 10.0;
-    private double adaptiveYellowTime = 3.0;
-    private double adaptiveMaxGreen = 25.0;
-    private double adaptiveIncrement = 2.0; // Incremento por veículo acima do threshold
-    private int adaptiveQueueThreshold = 2; // Threshold de fila para começar a adaptar
+    private double adaptiveBaseGreen;
+    private double adaptiveYellowTime;
+    private double adaptiveMaxGreen; // Teto máximo para o verde adaptativo
+    private double adaptiveMinGreenTime; // Mínimo absoluto para verde adaptativo
+    private double adaptiveIncrement; // Incremento por veículo acima do threshold
+    private int adaptiveQueueThreshold;
 
-    // Novos tempos para EnergySavingStrategy (exemplos)
-    private double energySavingBaseGreen = 12.0;
-    private double energySavingYellowTime = 3.0;
-    private double energySavingMinGreen = 5.0;
-    private int energySavingThreshold = 1;  // Se <= 1 veículo, usa minGreen fora do pico
+    private double energySavingBaseGreen;
+    private double energySavingYellowTime;
+    private double energySavingMinGreen;
+    private int energySavingThreshold;
+    private double energySavingMaxGreenTime; // Teto máximo para verde no modo economia
 
-    // NOVO ATRIBUTO: Tempo limite para geração de veículos
-    private double vehicleGenerationStopTime; // Em segundos. Após este tempo, não gera mais veículos.
+    private double vehicleGenerationStopTime;
 
-    /**
-     * Construtor padrão para configurações.
-     * Inicializa com valores default.
-     */
     public Configuration() {
-        this.vehicleGenerationRate = 0.5; // Default: 1 veículo a cada 2 segundos
-        this.simulationDuration = 3600.0; // Default: 1 hora
-        this.trafficLightMode = 2;        // Default: Adaptativo por Fila
-        this.redirectThreshold = 10;      // Default: Redirecionar se fila > 10
-        this.peakHour = false;            // Default: Não é horário de pico
-        this.vehicleGenerationStopTime = 100.0; // Default: Gera veículos apenas nos primeiros 100 segundos
+        this.vehicleGenerationRate = 0.3; // Ajustado para testes de calibração
+        this.simulationDuration = 600.0;
+        this.trafficLightMode = 1;
+        this.redirectThreshold = 0; // Redirecionamento desabilitado por padrão
+        this.peakHour = false;
+        this.vehicleGenerationStopTime = 300.0;
+
+        this.fixedGreenTime = 15.0;
+        this.fixedYellowTime = 3.0;
+
+        this.adaptiveBaseGreen = 10.0;
+        this.adaptiveYellowTime = 3.0;
+        this.adaptiveMaxGreen = 30.0;
+        this.adaptiveMinGreenTime = 5.0;
+        this.adaptiveIncrement = 1.0;
+        this.adaptiveQueueThreshold = 3;
+
+        this.energySavingBaseGreen = 20.0;
+        this.energySavingYellowTime = 3.0;
+        this.energySavingMinGreen = 7.0;
+        this.energySavingThreshold = 1;
+        this.energySavingMaxGreenTime = 40.0;
     }
 
-    // Getters e Setters existentes...
+    // Getters e Setters
     public double getVehicleGenerationRate() { return vehicleGenerationRate; }
     public void setVehicleGenerationRate(double rate) { this.vehicleGenerationRate = rate; }
 
@@ -60,7 +66,6 @@ public class Configuration {
     public boolean isPeakHour() { return peakHour; }
     public void setPeakHour(boolean peakHour) { this.peakHour = peakHour; }
 
-    // Getters e Setters para os tempos dos semáforos
     public double getFixedGreenTime() { return fixedGreenTime; }
     public void setFixedGreenTime(double fixedGreenTime) { this.fixedGreenTime = fixedGreenTime; }
     public double getFixedYellowTime() { return fixedYellowTime; }
@@ -76,7 +81,8 @@ public class Configuration {
     public void setAdaptiveIncrement(double adaptiveIncrement) { this.adaptiveIncrement = adaptiveIncrement; }
     public int getAdaptiveQueueThreshold() { return adaptiveQueueThreshold; }
     public void setAdaptiveQueueThreshold(int adaptiveQueueThreshold) { this.adaptiveQueueThreshold = adaptiveQueueThreshold; }
-
+    public double getAdaptiveMinGreenTime() { return adaptiveMinGreenTime; }
+    public void setAdaptiveMinGreenTime(double adaptiveMinGreenTime) { this.adaptiveMinGreenTime = adaptiveMinGreenTime; }
 
     public double getEnergySavingBaseGreen() { return energySavingBaseGreen; }
     public void setEnergySavingBaseGreen(double energySavingBaseGreen) { this.energySavingBaseGreen = energySavingBaseGreen; }
@@ -86,23 +92,9 @@ public class Configuration {
     public void setEnergySavingMinGreen(double energySavingMinGreen) { this.energySavingMinGreen = energySavingMinGreen; }
     public int getEnergySavingThreshold() { return energySavingThreshold; }
     public void setEnergySavingThreshold(int energySavingThreshold) { this.energySavingThreshold = energySavingThreshold; }
+    public double getEnergySavingMaxGreenTime() { return energySavingMaxGreenTime; }
+    public void setEnergySavingMaxGreenTime(double energySavingMaxGreenTime) { this.energySavingMaxGreenTime = energySavingMaxGreenTime; }
 
-
-    /**
-     * Retorna o tempo (em segundos de simulação) após o qual nenhum novo veículo será gerado.
-     * @return O tempo limite para geração de veículos.
-     */
-    public double getVehicleGenerationStopTime() {
-        return vehicleGenerationStopTime;
-    }
-
-    /**
-     * Define o tempo (em segundos de simulação) após o qual nenhum novo veículo será gerado.
-     * Se o tempo atual da simulação exceder este valor, a geração de veículos para.
-     * Para gerar veículos durante toda a simulação, defina este valor igual ou maior que {@code simulationDuration}.
-     * @param vehicleGenerationStopTime O tempo limite para geração de veículos.
-     */
-    public void setVehicleGenerationStopTime(double vehicleGenerationStopTime) {
-        this.vehicleGenerationStopTime = vehicleGenerationStopTime;
-    }
+    public double getVehicleGenerationStopTime() { return vehicleGenerationStopTime; }
+    public void setVehicleGenerationStopTime(double vehicleGenerationStopTime) { this.vehicleGenerationStopTime = vehicleGenerationStopTime; }
 }
