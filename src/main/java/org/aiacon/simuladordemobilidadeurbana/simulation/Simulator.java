@@ -323,7 +323,7 @@ public class Simulator implements Runnable {
 
     private void sleep(double deltaTime) {
         try {
-            Thread.sleep((long) (deltaTime * 100));
+            Thread.sleep((long) (deltaTime * 10));
         } catch (InterruptedException e) {
             System.out.println("SIMULATOR_SLEEP: A thread foi interrompida durante o sleep.");
             this.running = false;

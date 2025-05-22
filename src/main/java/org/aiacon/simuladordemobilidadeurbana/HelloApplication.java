@@ -29,29 +29,28 @@ public class HelloApplication extends Application {
         // Definir os parâmetros da simulação ANTES de carregar o grafo,
         // pois o JsonParser agora precisa do objeto config.
         config.setTrafficLightMode(2);           // 1:Fixo, 2:AdaptativoFila, 3:EconomiaEnergia
-        config.setVehicleGenerationRate(0.3);    // Veículos por segundo
+        config.setVehicleGenerationRate(0.5);    // Veículos por segundo
         // config.setRedirectThreshold(10);      // Comentado pois redirectIfNeeded foi desabilitado no Simulator
         config.setPeakHour(true);               // Simular horário de pico ou não
 
-        double totalSimulationTime = 600.0;
-        double stopGeneratingVehiclesAfter = 300.0;
+        double totalSimulationTime = 3600.0;
+        double stopGeneratingVehiclesAfter = 1500.0;
 
         config.setSimulationDuration(totalSimulationTime);
         config.setVehicleGenerationStopTime(stopGeneratingVehiclesAfter);
 
-        // Você pode querer ajustar os parâmetros específicos de cada modo de semáforo aqui também:
         // Exemplo para Modo Fixo (se trafficLightMode fosse 1)
-        // config.setFixedGreenTime(18.0);
-        // config.setFixedYellowTime(3.5);
+        config.setFixedGreenTime(8);
+        config.setFixedYellowTime(3);
 
-        // Exemplo para Modo Adaptativo (se trafficLightMode fosse 2)
-        // config.setAdaptiveBaseGreen(12.0);
-        // config.setAdaptiveMaxGreen(35.0);
-        // config.setAdaptiveMinGreenTime(6.0);
-        // config.setAdaptiveIncrement(1.5);
-        // config.setAdaptiveQueueThreshold(4);
+        // Exemplo para Modo Adaptativo
+        config.setAdaptiveBaseGreen(8.0);
+        config.setAdaptiveMaxGreen(9.0);
+        config.setAdaptiveMinGreenTime(6.0);
+        config.setAdaptiveIncrement(0.5);
+        config.setAdaptiveQueueThreshold(7);
 
-        // Exemplo para Modo Economia (como está definido para 3 agora)
+        // Exemplo para Modo Economia
         // config.setEnergySavingBaseGreen(22.0);
         // config.setEnergySavingMaxGreenTime(45.0);
         // config.setEnergySavingMinGreen(8.0);

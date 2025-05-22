@@ -18,9 +18,9 @@ public class Statistics {
     private double totalWaitTime;
     private double totalFuelConsumed;
     private double currentTime;
-
-    private double currentCongestionIndex;
-    private double maxRecordedCongestionRatio; // Para guardar o pico de congestionamento normalizado
+    private CustomLinkedList<Double> congestionIndexHistory; // Para armazenar o histórico do índice de congestionamento
+    private double currentCongestionIndex; // O índice de congestionamento atual (percentual)
+    private double maxRecordedCongestionRatio; // Para guardar o pico de congestionamento (percentual)
 
     /**
      * Construtor padrão para a classe Statistics.
@@ -35,11 +35,11 @@ public class Statistics {
         this.currentTime = 0.0;
         this.currentCongestionIndex = 0.0;
         this.maxRecordedCongestionRatio = 0.0;
+        this.congestionIndexHistory = new CustomLinkedList<>(); // Inicializa a lista
     }
 
     /**
      * Incrementa o contador de veículos gerados.
-     * Deve ser chamado sempre que um novo veículo é introduzido na simulação.
      */
     public synchronized void vehicleGenerated() {
         this.vehiclesGenerated++;
@@ -69,26 +69,19 @@ public class Statistics {
 
     /**
      * Calcula e atualiza o índice de congestionamento atual da simulação.
-     * <p>
-     * A métrica de congestionamento é calculada considerando dois componentes principais:
-     * <ol>
-     * <li><b>Densidade de Veículos:</b> A proporção de veículos ativos em relação ao número total de nós no grafo.
-     * Um valor mais alto aqui sugere que a rede está mais "cheia".</li>
-     * <li><b>Proporção de Veículos Enfileirados:</b> A porcentagem de veículos ativos que estão atualmente
-     * parados em filas de semáforos. Um valor alto aqui indica que muitos veículos estão parados.</li>
-     * </ol>
-     * Estes dois componentes são combinados, com um peso maior dado à proporção de veículos enfileirados,
-     * para gerar um índice de congestionamento normalizado (idealmente entre 0 e 1, mas pode exceder 1
-     * em situações extremas se a normalização não for perfeita ou se a rede estiver supersaturada).
-     * <p>
-     * O método também rastreia o {@code maxRecordedCongestionRatio}.
+     * O índice é baseado na densidade de veículos e na proporção de veículos enfileirados.
+     * O valor calculado é armazenado em {@code currentCongestionIndex} como uma porcentagem
+     * e também adicionado ao {@code congestionIndexHistory} para cálculo posterior da média.
      *
      * @param activeVehicles Lista de todos os veículos atualmente ativos na simulação.
-     * @param graph          O grafo da rede urbana, usado para acessar semáforos e o número total de nós.
+     * @param graph          O grafo da rede urbana.
      */
     public synchronized void calculateCurrentCongestion(CustomLinkedList<Vehicle> activeVehicles, Graph graph) {
         if (graph == null || graph.getNodes() == null || graph.getNodes().isEmpty() || activeVehicles == null) {
             this.currentCongestionIndex = 0.0;
+            if (this.congestionIndexHistory != null) { // Adiciona 0 se não houver dados
+                this.congestionIndexHistory.add(0.0);
+            }
             return;
         }
 
@@ -104,38 +97,38 @@ public class Statistics {
             }
         }
 
-        if (totalNodes == 0) { // Evita divisão por zero se, por algum motivo, não houver nós
-            this.currentCongestionIndex = numberOfActiveVehicles + totalQueuedVehicles; // Fallback para a métrica antiga
-            return;
+        if (totalNodes == 0) {
+            // Se não houver nós, a definição de congestionamento fica ambígua.
+            // Poderia ser 100% se houver veículos, ou 0% se não houver.
+            // Manteremos um valor que indique erro ou situação anômala se preferir.
+            // Por agora, se não há nós, o conceito de densidade é problemático.
+            // Usando uma métrica que ainda possa ter algum significado (soma de veículos).
+            this.currentCongestionIndex = (numberOfActiveVehicles + totalQueuedVehicles > 0) ? 100.0 : 0.0; // Saturação se houver qqr carro
+        } else {
+            double vehicleDensityRatio = (double) numberOfActiveVehicles / totalNodes;
+            double queuedVehicleRatio = (numberOfActiveVehicles > 0) ? (double) totalQueuedVehicles / numberOfActiveVehicles : 0.0;
+
+            // Combinação ponderada (ajuste os pesos conforme achar melhor)
+            // 0.3 para densidade e 0.7 para proporção em fila para dar mais peso aos parados
+            double rawCongestionScore = (0.3 * vehicleDensityRatio) + (0.7 * queuedVehicleRatio);
+
+            // Normaliza para um valor percentual (0-100)
+            // Math.min(1.0, ...) garante que não passe de 100% a menos que a interpretação de rawCongestionScore permita.
+            // Se rawCongestionScore for concebido para variar naturalmente acima de 1 em casos extremos,
+            // o Math.min(1.0,...) pode ser removido ou ajustado.
+            this.currentCongestionIndex = Math.min(1.0, rawCongestionScore) * 100.0;
         }
-
-        // Componente 1: Densidade de veículos na rede (0 a 1, pode ser > 1 se muitos carros por nó)
-        double vehicleDensityRatio = (double) numberOfActiveVehicles / totalNodes;
-
-        // Componente 2: Proporção de veículos ativos que estão em filas (0 a 1)
-        double queuedVehicleRatio = (numberOfActiveVehicles > 0) ? (double) totalQueuedVehicles / numberOfActiveVehicles : 0.0;
-
-        // Combinação ponderada. Exemplo: 40% da densidade, 60% da proporção em fila.
-        // Essa ponderação e a forma de combinar podem ser ajustadas.
-        // O objetivo é um índice que "sinta" mais o congestionamento quando muitos estão parados.
-        double rawCongestionScore = (0.4 * vehicleDensityRatio) + (0.6 * queuedVehicleRatio);
-
-        // Normalizar para um valor entre 0 e 1 (aproximadamente).
-        // Se rawCongestionScore puder, teoricamente, passar de 1 (ex: densidade > 1 e todos em fila),
-        // podemos "clipar" em 1 ou usar uma função de escalonamento diferente.
-        // Por agora, vamos assumir que rawCongestionScore é uma boa representação entre 0 e 1.
-        this.currentCongestionIndex = Math.min(1.0, rawCongestionScore) * 100; // Apresentar como porcentagem
 
         // Atualiza o pico de congestionamento
         if (this.currentCongestionIndex > this.maxRecordedCongestionRatio) {
             this.maxRecordedCongestionRatio = this.currentCongestionIndex;
         }
 
-        // Para o log, vamos manter a métrica antiga que é mais fácil de interpretar o aumento/diminuição absoluto.
-        // A métrica this.currentCongestionIndex (percentual) pode ser usada no visualizer.
-        // System.out.println("DEBUG_CONGESTION: Ativos=" + numberOfActiveVehicles + ", Enfileirados=" + totalQueuedVehicles + ", ÍndicePercentual=" + String.format("%.2f", this.currentCongestionIndex) + "%");
+        // Adiciona o índice atual ao histórico para cálculo da média
+        if (this.congestionIndexHistory != null) {
+            this.congestionIndexHistory.add(this.currentCongestionIndex);
+        }
     }
-
 
     /**
      * Retorna o índice de congestionamento calculado mais recentemente, como uma porcentagem (0-100).
@@ -154,59 +147,46 @@ public class Statistics {
     }
 
     /**
-     * Retorna o número total de veículos gerados durante a simulação.
-     * @return O total de veículos gerados.
+     * Calcula e retorna o índice médio de congestionamento registrado durante toda a simulação.
+     * @return A média do índice de congestionamento como porcentagem, ou 0.0 se nenhum dado foi registrado.
      */
+    public synchronized double getAverageCongestionIndex() {
+        if (congestionIndexHistory == null || congestionIndexHistory.isEmpty()) {
+            return 0.0;
+        }
+        double sum = 0;
+        int count = 0;
+        // Assumindo que CustomLinkedList é iterável ou tem get(index) e size()
+        for (int i = 0; i < congestionIndexHistory.size(); i++) {
+            Double congestionValue = congestionIndexHistory.get(i); // Ajuste se o método de acesso for diferente
+            if (congestionValue != null) {
+                sum += congestionValue;
+                count++;
+            }
+        }
+        return (count > 0) ? (sum / count) : 0.0;
+    }
+
+
     public synchronized int getTotalVehiclesGenerated() {
         return vehiclesGenerated;
     }
-
-    /**
-     * Retorna o número de veículos que chegaram aos seus destinos.
-     * @return O total de veículos que chegaram.
-     */
-    public synchronized int getArrivedCount() {
+    public synchronized int getArrivedCount() { // Mantive este nome pois é comum
         return vehiclesArrived;
     }
-
-    /**
-     * Calcula e retorna o tempo médio de viagem para os veículos que chegaram ao destino.
-     * @return O tempo médio de viagem em segundos, ou 0.0 se nenhum veículo chegou.
-     */
     public synchronized double getAverageTravelTime() {
-        if (vehiclesArrived == 0) {
-            return 0.0;
-        }
+        if (vehiclesArrived == 0) return 0.0;
         return totalTravelTime / vehiclesArrived;
     }
-
-    /**
-     * Calcula e retorna o tempo médio de espera para os veículos que chegaram ao destino.
-     * @return O tempo médio de espera em segundos, ou 0.0 se nenhum veículo chegou.
-     */
     public synchronized double getAverageWaitTime() {
-        if (vehiclesArrived == 0) {
-            return 0.0;
-        }
+        if (vehiclesArrived == 0) return 0.0;
         return totalWaitTime / vehiclesArrived;
     }
-
-    /**
-     * Retorna o consumo total de combustível acumulado de todos os veículos que chegaram ao destino.
-     * @return O consumo total de combustível na unidade definida (ex: litros).
-     */
     public synchronized double getTotalFuelConsumed() {
         return totalFuelConsumed;
     }
-
-    /**
-     * Calcula e retorna o consumo médio de combustível por veículo que chegou ao destino.
-     * @return O consumo médio de combustível (ex: em litros), ou 0.0 se nenhum veículo chegou.
-     */
     public synchronized double getAverageFuelConsumptionPerVehicle() {
-        if (vehiclesArrived == 0) {
-            return 0.0;
-        }
+        if (vehiclesArrived == 0) return 0.0;
         return totalFuelConsumed / vehiclesArrived;
     }
 
@@ -214,14 +194,10 @@ public class Statistics {
         return vehiclesArrived;
     }
 
-    public double getCurrentTime() {
+    public double getCurrentTime() { // Não precisa ser synchronized se apenas lido após simulação
         return currentTime;
     }
 
-    /**
-     * Imprime um resumo das estatísticas da simulação no console.
-     * Inclui informações sobre veículos, tempos médios, consumo de combustível e pico de congestionamento.
-     */
     public synchronized void printSummary() {
         System.out.println("\n--- RESUMO DA SIMULAÇÃO ---");
         System.out.printf("Tempo Total de Simulação: %.2fs%n", currentTime);
@@ -237,6 +213,8 @@ public class Statistics {
             System.out.println("Nenhum veículo chegou ao destino para calcular médias detalhadas.");
         }
         System.out.printf("Pico de Congestionamento Registrado (Índice Percentual): %.2f%%%n", maxRecordedCongestionRatio);
+        // Adiciona a média de congestionamento ao resumo
+        System.out.printf("Média de Congestionamento Registrado (Índice Percentual): %.2f%%%n", getAverageCongestionIndex());
         System.out.println("---------------------------\n");
     }
 }

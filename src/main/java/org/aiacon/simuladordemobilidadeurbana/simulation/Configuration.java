@@ -39,9 +39,9 @@ public class Configuration {
         this.adaptiveBaseGreen = 10.0;
         this.adaptiveYellowTime = 3.0;
         this.adaptiveMaxGreen = 30.0;
-        this.adaptiveMinGreenTime = 5.0;
+        this.adaptiveMinGreenTime = 7.0;
         this.adaptiveIncrement = 1.0;
-        this.adaptiveQueueThreshold = 3;
+        this.adaptiveQueueThreshold = 2;
 
         this.energySavingBaseGreen = 20.0;
         this.energySavingYellowTime = 3.0;
