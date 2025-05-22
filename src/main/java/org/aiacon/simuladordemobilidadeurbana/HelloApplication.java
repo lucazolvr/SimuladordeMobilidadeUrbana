@@ -49,8 +49,8 @@ public class HelloApplication extends Application {
         // Configurar a simulação
         Configuration config = new Configuration();
         config.setTrafficLightMode(2); // Ex: 1 para FixedTime, 2 para AdaptiveQueue, 3 para EnergySaving
-        config.setVehicleGenerationRate(0.5); // Ex: 0.5 veículos por segundo (1 a cada 2 segundos)
-        config.setSimulationDuration(3600); // Ex: 2 horas de simulação
+        config.setVehicleGenerationRate(0.1); // Ex: 0.5 veículos por segundo (1 a cada 2 segundos)
+        config.setSimulationDuration(120); // Ex: 2 horas de simulação
         config.setRedirectThreshold(5);     // Ex: Limiar para redirecionamento
 
         System.out.println("HELLO_APPLICATION_START: Configuração da simulação carregada. Modo Semáforo: " + config.getTrafficLightMode());

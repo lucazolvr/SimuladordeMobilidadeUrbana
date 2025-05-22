@@ -1,16 +1,10 @@
 package org.aiacon.simuladordemobilidadeurbana.model;
 
-// Importações para as estratégias e classes de simulação/controle
 import org.aiacon.simuladordemobilidadeurbana.control.AdaptiveQueueStrategy;
 import org.aiacon.simuladordemobilidadeurbana.control.EnergySavingStrategy;
 import org.aiacon.simuladordemobilidadeurbana.control.FixedTimeStrategy;
 import org.aiacon.simuladordemobilidadeurbana.control.TrafficLightControlStrategy;
 import org.aiacon.simuladordemobilidadeurbana.simulation.NextPhaseDecision;
-// A classe LightPhase (enum) será importada se estiver em um arquivo separado no mesmo pacote,
-// ou se o import explícito for adicionado se estiver em outro pacote.
-// Se LightPhase.java estiver em org.aiacon.simuladordemobilidadeurbana.model, o import não é estritamente necessário
-// mas é uma boa prática incluí-lo para clareza.
-import org.aiacon.simuladordemobilidadeurbana.model.LightPhase;
 
 
 import java.util.HashMap; // Permitido

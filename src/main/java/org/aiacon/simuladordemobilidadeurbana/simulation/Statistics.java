@@ -18,6 +18,7 @@ public class Statistics {
     private double totalWaitTime;
     private double totalFuelConsumed; // Em litros, por exemplo
     private double currentTime; // Tempo atual da simulação para contextualizar as estatísticas
+    private double averageFuelConsumptionPerVehicle;
 
     // Para congestionamento dinâmico
     private double currentCongestionIndex;
@@ -32,6 +33,7 @@ public class Statistics {
         this.totalTravelTime = 0.0;
         this.totalWaitTime = 0.0;
         this.totalFuelConsumed = 0.0;
+        this.averageFuelConsumptionPerVehicle = 0.0;
         this.currentTime = 0.0;
         this.currentCongestionIndex = 0.0; // Inicializa como 0 (sem congestionamento)
     }
@@ -161,6 +163,13 @@ public class Statistics {
         return totalFuelConsumed / vehiclesArrived;
     }
 
+    public double getCurrentTime() {
+        return currentTime;
+    }
+
+    public int getVehiclesArrived() {
+        return vehiclesArrived;
+    }
 
     /**
      * Imprime um resumo das estatísticas da simulação no console.

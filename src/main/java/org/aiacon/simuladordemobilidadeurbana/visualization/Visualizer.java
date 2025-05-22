@@ -21,6 +21,7 @@ import javafx.scene.shape.Line;
 import javafx.scene.shape.Rectangle; // Para luzes do semáforo
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
+import org.aiacon.simuladordemobilidadeurbana.simulation.Statistics;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -41,9 +42,10 @@ public class Visualizer extends Application {
     private double centroLat, centroLon;
     private double escalaX, escalaY;
     private boolean transformacaoCalculada = false;
-
+    private Text statsText;
     private Graph graph;
     private Simulator simulator;
+    private Text congestionText;
 
     private Pane pane;
     private Map<String, Group> trafficLightNodeVisuals;
@@ -98,6 +100,12 @@ public class Visualizer extends Application {
 
         this.pane = new Pane();
         pane.setStyle("-fx-background-color: #f0f0f0;");
+
+        statsText = new Text(10, ALTURA_TELA - 10, "Estatísticas: Carregando...");
+        pane.getChildren().add(statsText);
+        // Adicionar o texto para o congestionamento
+        congestionText = new Text(10, ALTURA_TELA - 10, "Congestionamento: N/A"); // Posição de exemplo
+        pane.getChildren().add(congestionText);
 
         calcularParametrosDeTransformacao();
         desenharElementosEstaticos();
@@ -341,6 +349,27 @@ public class Visualizer extends Application {
         pane.getChildren().removeAll(childrenToRemove);
         pane.getChildren().addAll(childrenToAdd);
         vehicleVisuals = newVehicleVisualsMap;
+
+
+
+        // 3. Atualizar Texto de Estatísticas
+        if (simulator != null && simulator.getStats() != null && statsText != null) {
+            Statistics currentStats = simulator.getStats();
+            String statsDisplay = String.format(
+                    "Tempo: %.0fs | Veículos Ativos: %d | Congest.: %.0f\n" +
+                            "Chegadas: %d | T Médio Viagem: %.1fs | T Médio Espera: %.1fs\n" +
+                            "Comb. Total: %.2f L | Comb. Médio/Veículo: %.3f L",
+                    currentStats.getCurrentTime(), // Adicionar currentTime em Statistics ou pegar do simulator.time
+                    (simulator.getVehicles() != null ? simulator.getVehicles().size() : 0),
+                    currentStats.getCurrentCongestionIndex(),
+                    currentStats.getVehiclesArrived(),
+                    currentStats.getAverageTravelTime(),
+                    currentStats.getAverageWaitTime(),
+                    currentStats.getTotalFuelConsumed(),
+                    currentStats.getAverageFuelConsumptionPerVehicle()
+            );
+            statsText.setText(statsDisplay);
+        }
     }
 
     private String getNextNodeIdInRoute(Vehicle vehicle, String currentVehicleNodeId) {

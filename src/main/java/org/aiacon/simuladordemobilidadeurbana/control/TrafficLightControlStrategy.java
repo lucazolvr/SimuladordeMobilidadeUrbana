@@ -24,6 +24,5 @@ public interface TrafficLightControlStrategy {
      */
     void initialize(TrafficLight light);
 
-    // Poderia haver outros métodos, como para obter o estado atual de uma via específica
     String getLightStateForApproach(TrafficLight light, String approachDirection);
 }

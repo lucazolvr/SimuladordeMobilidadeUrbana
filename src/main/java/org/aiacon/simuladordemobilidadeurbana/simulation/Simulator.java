@@ -34,6 +34,7 @@ public class Simulator implements Runnable {
 
         while (running && time < config.getSimulationDuration()) {
             time += deltaTime;
+            stats.updateCurrentTime(time);
 
             if (Thread.currentThread().isInterrupted()) {
                 System.out.println("SIMULATOR_RUN: Thread de simulação interrompida, encerrando loop.");
@@ -45,6 +46,9 @@ public class Simulator implements Runnable {
             updateTrafficLights(deltaTime);
             moveVehicles(deltaTime);
             logSimulationState();
+            stats.getCurrentCongestionIndex();
+            // Calcula o congestionamento após todas as atualizações do passo
+            stats.calculateCurrentCongestion(this.vehicles, this.graph);
 
             if (running) {
                 sleep(deltaTime);
@@ -187,6 +191,7 @@ public class Simulator implements Runnable {
         if (!running) return; // Verifica se a simulação deve continuar
 
         vehicle.incrementTravelTime(deltaTime);
+        boolean vehicleIsMoving = false; // Flag para determinar tipo de consumo
 
         if (vehicle.getPosition() == 0.0) { // Veículo está em um nó
             String currentVehicleNodeId = vehicle.getCurrentNode();
@@ -204,6 +209,7 @@ public class Simulator implements Runnable {
                 if(!currentVehicleNodeId.equals(vehicle.getDestination())){
                     System.err.println("UPDATE_VEHICLE: Veículo " + vehicle.getId() + " em " + currentVehicleNodeId + " sem próximo nó, mas não está no destino " + vehicle.getDestination() + ". Rota: " + vehicle.getRoute());
                 }
+                vehicle.incrementFuelConsumption(vehicle.getFuelConsumptionRateIdle() * deltaTime);
                 return;
             }
 
@@ -219,6 +225,7 @@ public class Simulator implements Runnable {
 
                 if (!"green".equalsIgnoreCase(lightState)) {
                     vehicle.incrementWaitTime(deltaTime);
+                    vehicle.incrementFuelConsumption(vehicle.getFuelConsumptionRateIdle() * deltaTime); // Consumo em marcha lenta
                     // Enfileira na direção de aproximação que está esperando
                     tl.addVehicleToQueue(approachToLightDirection, vehicle);
                     return;
@@ -237,13 +244,16 @@ public class Simulator implements Runnable {
             if (edgeTravelTime <= 0) edgeTravelTime = deltaTime; // Evitar divisão por zero ou tempo negativo
 
             vehicle.setPosition(deltaTime / edgeTravelTime);
+            vehicleIsMoving = true; // Veículo está começando a se mover na aresta
 
             if (vehicle.getPosition() >= 1.0) {
                 vehicle.setCurrentNode(nextNodeIdInRoute);
                 vehicle.setPosition(0.0);
+                vehicleIsMoving = false; // Chegou ao próximo nó, vai parar ou reavaliar
             }
 
         } else { // Veículo já está em uma aresta
+            vehicleIsMoving = true; // Assumindo que está se movendo se position > 0
             String sourceNodeOfCurrentSegment = vehicle.getCurrentNode();
             String targetNodeOfCurrentSegment = getNextNodeInRoute(vehicle);
 
@@ -251,8 +261,13 @@ public class Simulator implements Runnable {
                 System.err.println("UPDATE_VEHICLE (EM ARESTA): Veículo " + vehicle.getId() + " na aresta de " + sourceNodeOfCurrentSegment +
                         " mas getNextNodeInRoute é nulo. Posição: " + String.format("%.2f",vehicle.getPosition()));
                 vehicle.setPosition(0.0); // Força chegada no sourceNodeOfCurrentSegment
+                vehicleIsMoving = false; // Parou
                 if (!sourceNodeOfCurrentSegment.equals(vehicle.getDestination())) {
                     System.err.println("    Veículo " + vehicle.getId() + " parou em " + sourceNodeOfCurrentSegment + " pois a rota terminou inesperadamente.");
+                }
+                // Consumo em marcha lenta se não chegou ao destino
+                if (!vehicle.getCurrentNode().equals(vehicle.getDestination())) {
+                    vehicle.incrementFuelConsumption(vehicle.getFuelConsumptionRateIdle() * deltaTime);
                 }
                 return;
             }
@@ -272,6 +287,17 @@ public class Simulator implements Runnable {
             if (vehicle.getPosition() >= 1.0) {
                 vehicle.setCurrentNode(targetNodeOfCurrentSegment);
                 vehicle.setPosition(0.0);
+                vehicleIsMoving = false; // Chegou ao próximo nó
+            }
+        }
+
+        // Atualizar consumo de combustível baseado no estado
+        if (vehicleIsMoving) {
+            vehicle.incrementFuelConsumption(vehicle.getFuelConsumptionRateMoving() * deltaTime);
+        } else {
+            // Se não está se movendo e não está no destino final, considera marcha lenta
+            if (!vehicle.getCurrentNode().equals(vehicle.getDestination()) || vehicle.getPosition() > 0) { // A segunda condição é para o caso de ter acabado de chegar a um nó intermediário
+                vehicle.incrementFuelConsumption(vehicle.getFuelConsumptionRateIdle() * deltaTime);
             }
         }
     }
@@ -289,8 +315,9 @@ public class Simulator implements Runnable {
     }
 
     private void logSimulationState() {
-        // O método calculateCongestion foi removido do Simulator.
-        System.out.println("Tempo: " + String.format("%.2f", time) + "s, Veículos: " + (vehicles != null ? vehicles.size() : 0));
+        System.out.println("Tempo: " + String.format("%.2f", time) + "s, Veículos: " + (vehicles != null ? vehicles.size() : 0) +
+                ", Congestionamento: " + String.format("%.0f", stats.getCurrentCongestionIndex()));
+        // Usando %.0f para mostrar o número "bruto" de veículos + enfileirados
     }
 
     private void sleep(double deltaTime) {
@@ -474,6 +501,10 @@ public class Simulator implements Runnable {
 
     public CustomLinkedList<Vehicle> getVehicles() {
         return this.vehicles;
+    }
+
+    public Statistics getStats() {
+        return this.stats;
     }
 
 }
