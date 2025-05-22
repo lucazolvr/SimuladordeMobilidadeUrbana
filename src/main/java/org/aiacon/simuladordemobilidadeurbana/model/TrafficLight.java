@@ -71,7 +71,7 @@ public class TrafficLight {
                 this.controlStrategy = new FixedTimeStrategy((double)this.baseGreenTime, (double)this.baseYellowTime);
                 break;
             case 2:
-                this.controlStrategy = new AdaptiveQueueStrategy((double)this.baseGreenTime, (double)this.baseYellowTime, 10.0, 3, 5.0);
+                this.controlStrategy = new AdaptiveQueueStrategy((double)this.baseGreenTime, (double)this.baseYellowTime, 25.0, 3, 5.0);
                 break;
             case 3:
                 this.controlStrategy = new EnergySavingStrategy((double)this.baseGreenTime, (double)this.baseYellowTime, 5.0, 1);

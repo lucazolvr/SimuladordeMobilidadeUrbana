@@ -99,7 +99,7 @@ public class Visualizer extends Application {
         }
 
         this.pane = new Pane();
-        pane.setStyle("-fx-background-color: #f0f0f0;");
+        pane.setStyle("-fx-background-color: #D3D3D3;");
 
         statsText = new Text(10, ALTURA_TELA - 10, "Estatísticas: Carregando...");
         pane.getChildren().add(statsText);

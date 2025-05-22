@@ -12,6 +12,7 @@ public class Simulator implements Runnable {
     private VehicleGenerator generator;
     private double time;
     private volatile boolean running = true;
+    private boolean generationStopped = false; // Adicione esta flag
 
     public Simulator(Graph graph, Configuration config) {
         this.graph = graph;
@@ -20,6 +21,7 @@ public class Simulator implements Runnable {
         this.stats = new Statistics();
         this.generator = new VehicleGenerator(graph, config.getVehicleGenerationRate());
         this.time = 0.0;
+        // this.generationStopped = false; // Inicializada na declaração do campo
 
         validateGraph();
         if (!isGraphConnected()) {
@@ -42,12 +44,22 @@ public class Simulator implements Runnable {
                 break;
             }
 
-            generateVehicles(deltaTime);
+            // Verifica se deve parar de gerar veículos e atualiza a flag
+            // A mensagem de parada será logada na primeira vez que esta condição for verdadeira
+            if (!generationStopped && time > config.getVehicleGenerationStopTime()) {
+                System.out.println("SIMULATOR_RUN: Tempo limite de geração de veículos (" + String.format("%.2f", config.getVehicleGenerationStopTime()) + "s) atingido. Nenhum veículo novo será gerado.");
+                generationStopped = true; // Seta a flag para parar futuras gerações
+            }
+
+            // Gera veículos APENAS SE a flag generationStopped for false
+            if (!generationStopped) {
+                generateVehicles(deltaTime);
+            }
+            // A CHAMADA EXTRA E INCONDICIONAL A generateVehicles(deltaTime); FOI REMOVIDA DAQUI
+
             updateTrafficLights(deltaTime);
             moveVehicles(deltaTime);
             logSimulationState();
-            stats.getCurrentCongestionIndex();
-            // Calcula o congestionamento após todas as atualizações do passo
             stats.calculateCurrentCongestion(this.vehicles, this.graph);
 
             if (running) {
@@ -76,24 +88,24 @@ public class Simulator implements Runnable {
             return false;
         }
         CustomLinkedList<String> visited = new CustomLinkedList<>();
-        CustomLinkedList<String> queue = new CustomLinkedList<>(); // Sua CustomLinkedList
+        CustomLinkedList<String> queue = new CustomLinkedList<>();
 
-        Node startNode = graph.getNodes().get(0); // Assumindo que get(0) é seguro
+        Node startNode = graph.getNodes().get(0);
         if (startNode == null) {
             System.out.println("BFS: Primeiro nó do grafo é nulo!");
             return false;
         }
 
         queue.add(startNode.getId());
-        visited.add(startNode.getId()); // Marcar como visitado ao enfileirar
+        visited.add(startNode.getId());
 
         int iterations = 0;
-        int maxIterations = graph.getNodes().size(); // BFS visita cada nó no máximo uma vez em grafo conectado
+        int maxIterations = graph.getNodes().size();
 
-        while (!queue.isEmpty() && iterations < maxIterations) { // Adicionada checagem de iterações para segurança
+        while (!queue.isEmpty() && iterations < maxIterations) {
             iterations++;
             String currentNodeId = queue.removeFirst();
-            Node currentNodeObject = graph.getNode(currentNodeId); // Otimizado com HashMap no Graph
+            Node currentNodeObject = graph.getNode(currentNodeId);
 
             if (currentNodeObject != null && currentNodeObject.getEdges() != null) {
                 for (Edge edge : currentNodeObject.getEdges()) {
@@ -133,7 +145,7 @@ public class Simulator implements Runnable {
         if (graph.getTrafficLights() == null) return;
         for (TrafficLight tl : graph.getTrafficLights()) {
             if (tl != null) {
-                tl.update(deltaTime, config.isPeakHour()); // Assinatura correta
+                tl.update(deltaTime, config.isPeakHour());
             }
         }
     }
@@ -146,23 +158,15 @@ public class Simulator implements Runnable {
 
             if (running && vehicle.getCurrentNode().equals(vehicle.getDestination()) && vehicle.getPosition() == 0.0) {
                 stats.vehicleArrived(vehicle.getTravelTime(), vehicle.getWaitTime(), vehicle.getFuelConsumed());
-            } else if (running) { // Só adiciona de volta se a simulação não parou por erro em updateVehicle
+            } else if (running) {
                 vehiclesStillActive.add(vehicle);
             }
         }
-        if (running) { // Só atualiza a lista se a simulação ainda estiver rodando
+        if (running) {
             vehicles = vehiclesStillActive;
         }
     }
 
-    /**
-     * Determina a direção cardeal APROXIMADA do movimento DE um nó PARA outro.
-     * Usado para determinar de onde um veículo se aproxima de um semáforo,
-     * ou para qual direção ele pretende sair de um cruzamento.
-     * @param fromNodeId ID do nó de origem.
-     * @param toNodeId ID do nó de destino.
-     * @return String como "north", "south", "east", "west", ou "unknown".
-     */
     private String determineCardinalDirection(String fromNodeId, String toNodeId) {
         if (fromNodeId == null || toNodeId == null || fromNodeId.equals(toNodeId)) {
             return "unknown";
@@ -177,31 +181,33 @@ public class Simulator implements Runnable {
         double deltaLon = toNode.getLongitude() - fromNode.getLongitude();
         double absDeltaLat = Math.abs(deltaLat);
         double absDeltaLon = Math.abs(deltaLon);
-        double threshold = 0.000001; // Pequeno limiar para movimento significativo
+        double threshold = 0.000001;
 
         if (absDeltaLat > absDeltaLon + threshold) {
-            return (deltaLat > 0) ? "north" : "south"; // Movimento para Norte (lat aumenta) ou Sul (lat diminui)
+            return (deltaLat > 0) ? "north" : "south";
         } else if (absDeltaLon > absDeltaLat + threshold) {
-            return (deltaLon > 0) ? "east" : "west"; // Movimento para Leste (lon aumenta) ou Oeste (lon diminui)
+            return (deltaLon > 0) ? "east" : "west";
         }
-        return "unknown"; // Diagonal ou muito próximo
+        return "unknown";
     }
 
     private void updateVehicle(Vehicle vehicle, double deltaTime) {
-        if (!running) return; // Verifica se a simulação deve continuar
+        if (!running) return;
 
         vehicle.incrementTravelTime(deltaTime);
-        boolean vehicleIsMoving = false; // Flag para determinar tipo de consumo
+        boolean vehicleIsMoving = false;
 
-        if (vehicle.getPosition() == 0.0) { // Veículo está em um nó
+        if (vehicle.getPosition() == 0.0) {
             String currentVehicleNodeId = vehicle.getCurrentNode();
             String previousNodeIdInRoute = getPreviousNodeInRoute(vehicle);
 
             TrafficLight tl = getTrafficLight(currentVehicleNodeId);
 
-            if (tl != null && config.getRedirectThreshold() > 0) { // Só tenta redirecionar se o threshold for positivo
+            /*
+            if (tl != null && config.getRedirectThreshold() > 0) {
                 redirectIfNeeded(vehicle, currentVehicleNodeId, graph);
             }
+             */
 
             String nextNodeIdInRoute = getNextNodeInRoute(vehicle);
 
@@ -215,18 +221,17 @@ public class Simulator implements Runnable {
 
             if (tl != null) {
                 String approachToLightDirection = "unknown";
-                if (previousNodeIdInRoute != null) { // Veículo vindo de algum lugar
+                if (previousNodeIdInRoute != null) {
                     approachToLightDirection = determineCardinalDirection(previousNodeIdInRoute, currentVehicleNodeId);
-                } else { // Veículo começando a rota no nó do semáforo
-                    approachToLightDirection = determineCardinalDirection(currentVehicleNodeId, nextNodeIdInRoute); // Direção de saída pretendida
+                } else {
+                    approachToLightDirection = determineCardinalDirection(currentVehicleNodeId, nextNodeIdInRoute);
                 }
 
                 String lightState = tl.getLightStateForApproach(approachToLightDirection);
 
                 if (!"green".equalsIgnoreCase(lightState)) {
                     vehicle.incrementWaitTime(deltaTime);
-                    vehicle.incrementFuelConsumption(vehicle.getFuelConsumptionRateIdle() * deltaTime); // Consumo em marcha lenta
-                    // Enfileira na direção de aproximação que está esperando
+                    vehicle.incrementFuelConsumption(vehicle.getFuelConsumptionRateIdle() * deltaTime);
                     tl.addVehicleToQueue(approachToLightDirection, vehicle);
                     return;
                 }
@@ -241,31 +246,30 @@ public class Simulator implements Runnable {
                 return;
             }
             double edgeTravelTime = edgeToTraverse.getTravelTime();
-            if (edgeTravelTime <= 0) edgeTravelTime = deltaTime; // Evitar divisão por zero ou tempo negativo
+            if (edgeTravelTime <= 0) edgeTravelTime = deltaTime;
 
             vehicle.setPosition(deltaTime / edgeTravelTime);
-            vehicleIsMoving = true; // Veículo está começando a se mover na aresta
+            vehicleIsMoving = true;
 
             if (vehicle.getPosition() >= 1.0) {
                 vehicle.setCurrentNode(nextNodeIdInRoute);
                 vehicle.setPosition(0.0);
-                vehicleIsMoving = false; // Chegou ao próximo nó, vai parar ou reavaliar
+                vehicleIsMoving = false;
             }
 
-        } else { // Veículo já está em uma aresta
-            vehicleIsMoving = true; // Assumindo que está se movendo se position > 0
+        } else {
+            vehicleIsMoving = true;
             String sourceNodeOfCurrentSegment = vehicle.getCurrentNode();
             String targetNodeOfCurrentSegment = getNextNodeInRoute(vehicle);
 
             if (targetNodeOfCurrentSegment == null) {
                 System.err.println("UPDATE_VEHICLE (EM ARESTA): Veículo " + vehicle.getId() + " na aresta de " + sourceNodeOfCurrentSegment +
                         " mas getNextNodeInRoute é nulo. Posição: " + String.format("%.2f",vehicle.getPosition()));
-                vehicle.setPosition(0.0); // Força chegada no sourceNodeOfCurrentSegment
-                vehicleIsMoving = false; // Parou
+                vehicle.setPosition(0.0);
+                vehicleIsMoving = false;
                 if (!sourceNodeOfCurrentSegment.equals(vehicle.getDestination())) {
                     System.err.println("    Veículo " + vehicle.getId() + " parou em " + sourceNodeOfCurrentSegment + " pois a rota terminou inesperadamente.");
                 }
-                // Consumo em marcha lenta se não chegou ao destino
                 if (!vehicle.getCurrentNode().equals(vehicle.getDestination())) {
                     vehicle.incrementFuelConsumption(vehicle.getFuelConsumptionRateIdle() * deltaTime);
                 }
@@ -287,16 +291,14 @@ public class Simulator implements Runnable {
             if (vehicle.getPosition() >= 1.0) {
                 vehicle.setCurrentNode(targetNodeOfCurrentSegment);
                 vehicle.setPosition(0.0);
-                vehicleIsMoving = false; // Chegou ao próximo nó
+                vehicleIsMoving = false;
             }
         }
 
-        // Atualizar consumo de combustível baseado no estado
         if (vehicleIsMoving) {
             vehicle.incrementFuelConsumption(vehicle.getFuelConsumptionRateMoving() * deltaTime);
         } else {
-            // Se não está se movendo e não está no destino final, considera marcha lenta
-            if (!vehicle.getCurrentNode().equals(vehicle.getDestination()) || vehicle.getPosition() > 0) { // A segunda condição é para o caso de ter acabado de chegar a um nó intermediário
+            if (!vehicle.getCurrentNode().equals(vehicle.getDestination()) || vehicle.getPosition() > 0) {
                 vehicle.incrementFuelConsumption(vehicle.getFuelConsumptionRateIdle() * deltaTime);
             }
         }
@@ -317,12 +319,11 @@ public class Simulator implements Runnable {
     private void logSimulationState() {
         System.out.println("Tempo: " + String.format("%.2f", time) + "s, Veículos: " + (vehicles != null ? vehicles.size() : 0) +
                 ", Congestionamento: " + String.format("%.0f", stats.getCurrentCongestionIndex()));
-        // Usando %.0f para mostrar o número "bruto" de veículos + enfileirados
     }
 
     private void sleep(double deltaTime) {
         try {
-            Thread.sleep((long) (deltaTime * 1000));
+            Thread.sleep((long) (deltaTime * 100));
         } catch (InterruptedException e) {
             System.out.println("SIMULATOR_SLEEP: A thread foi interrompida durante o sleep.");
             this.running = false;
@@ -332,7 +333,7 @@ public class Simulator implements Runnable {
 
     private void redirectIfNeeded(Vehicle vehicle, String trafficLightNodeId, Graph graph) {
         if (vehicle == null || trafficLightNodeId == null || graph == null || config == null || config.getRedirectThreshold() <= 0) {
-            return; // Não redireciona se o threshold for não positivo ou parâmetros nulos
+            return;
         }
 
         TrafficLight tl = getTrafficLight(trafficLightNodeId);
@@ -345,7 +346,7 @@ public class Simulator implements Runnable {
         if ("unknown".equals(currentRouteOutgoingDirection)) return;
 
         Integer currentDirectionIndex = tl.getDirectionIndex(currentRouteOutgoingDirection);
-        int[] queueSizes = tl.getAllQueueSizes(); // Obtém os tamanhos das filas do semáforo
+        int[] queueSizes = tl.getAllQueueSizes();
 
         if (currentDirectionIndex != null && currentDirectionIndex >= 0 && currentDirectionIndex < queueSizes.length &&
                 queueSizes[currentDirectionIndex] > config.getRedirectThreshold()) {
@@ -354,7 +355,7 @@ public class Simulator implements Runnable {
                     ". Rota atual via " + currentRouteOutgoingDirection + " (nó " + nextNodeInOriginalRoute + ") congestionada (fila: " + queueSizes[currentDirectionIndex] + "). Procurando alternativa...");
 
             String bestAlternativeOutgoingDirection = null;
-            int minQueueSizeForAlternative = queueSizes[currentDirectionIndex]; // Inicia com a fila atual para garantir melhora
+            int minQueueSizeForAlternative = queueSizes[currentDirectionIndex];
             Node bestAlternativeNextNode = null;
             String oppositeOfCurrentOutgoing = getOppositeDirection(currentRouteOutgoingDirection);
 
@@ -377,7 +378,7 @@ public class Simulator implements Runnable {
                 }
             }
 
-            if (bestAlternativeNextNode != null) { // Se uma alternativa válida foi encontrada (mesmo que a fila não seja estritamente menor, mas diferente)
+            if (bestAlternativeNextNode != null) {
                 System.out.println("  -> Redirecionando Veículo " + vehicle.getId() + " para direção '" + bestAlternativeOutgoingDirection +
                         "' (nó: " + bestAlternativeNextNode.getId() + ") com fila: " + minQueueSizeForAlternative);
 
@@ -388,7 +389,6 @@ public class Simulator implements Runnable {
                     finalNewRoute.add(trafficLightNodeId);
                     finalNewRoute.add(bestAlternativeNextNode.getId());
 
-                    // Adiciona o restante da rota, garantindo que não haja duplicação do bestAlternativeNextNode
                     boolean firstNodeSkipped = false;
                     for(String routeNode : newRouteFromAlternative) {
                         if (!firstNodeSkipped && routeNode.equals(bestAlternativeNextNode.getId())) {
@@ -409,7 +409,7 @@ public class Simulator implements Runnable {
     }
 
     private String getOppositeDirection(String direction) {
-        if (direction == null) return "unknown"; // Retorna unknown para consistência
+        if (direction == null) return "unknown";
         switch (direction.toLowerCase()) {
             case "north": return "south";
             case "south": return "north";
@@ -433,33 +433,28 @@ public class Simulator implements Runnable {
         if (vehicle == null || vehicle.getRoute() == null || vehicle.getRoute().isEmpty()) return null;
         String currentNode = vehicle.getCurrentNode();
         if (currentNode == null) return null;
-        int currentIndex = vehicle.getRoute().indexOf(currentNode); // O(N) para CustomLinkedList
+        int currentIndex = vehicle.getRoute().indexOf(currentNode);
         if (currentIndex == -1 || currentIndex + 1 >= vehicle.getRoute().size()) return null;
-        return vehicle.getRoute().get(currentIndex + 1); // O(N) para CustomLinkedList
+        return vehicle.getRoute().get(currentIndex + 1);
     }
 
     private String getPreviousNodeInRoute(Vehicle vehicle) {
         if (vehicle == null || vehicle.getRoute() == null || vehicle.getRoute().isEmpty() || vehicle.getCurrentNode() == null) return null;
         String currentVehicleNodeId = vehicle.getCurrentNode();
-        int currentIndex = vehicle.getRoute().indexOf(currentVehicleNodeId); // O(N) para CustomLinkedList
+        int currentIndex = vehicle.getRoute().indexOf(currentVehicleNodeId);
         if (currentIndex > 0) {
-            return vehicle.getRoute().get(currentIndex - 1); // O(N) para CustomLinkedList
+            return vehicle.getRoute().get(currentIndex - 1);
         }
         return null;
     }
 
-    /**
-     * Encontra um nó vizinho que melhor corresponde à direção cardeal desejada a partir de um nó de origem.
-     * A "melhor" correspondência é baseada em qual vizinho tem a maior componente vetorial na direção desejada,
-     * minimizando o componente perpendicular.
-     */
     private Node findNeighborInDirection(String sourceNodeId, String targetDirection, Graph graph) {
         Node sourceNode = graph.getNode(sourceNodeId);
         if (sourceNode == null || sourceNode.getEdges() == null || targetDirection == null || targetDirection.equals("unknown")) {
             return null;
         }
         Node bestNeighbor = null;
-        double bestScore = -Double.MAX_VALUE; // Queremos maximizar o "alinhamento"
+        double bestScore = -Double.MAX_VALUE;
 
         for (Edge edge : sourceNode.getEdges()) {
             if (edge == null) continue;
@@ -470,32 +465,27 @@ public class Simulator implements Runnable {
             double deltaLon = neighbor.getLongitude() - sourceNode.getLongitude();
             double score = 0.0;
 
-            // Calcula um score de alinhamento. Um valor positivo maior indica melhor alinhamento.
-            // Penaliza desvios da direção principal.
             switch (targetDirection.toLowerCase()) {
                 case "north":
-                    if (deltaLat > 0) score = deltaLat - Math.abs(deltaLon); // Prioriza deltaLat positivo
+                    if (deltaLat > 0) score = deltaLat - Math.abs(deltaLon);
                     break;
                 case "south":
-                    if (deltaLat < 0) score = -deltaLat - Math.abs(deltaLon); // Prioriza deltaLat negativo (maior -deltaLat)
+                    if (deltaLat < 0) score = -deltaLat - Math.abs(deltaLon);
                     break;
                 case "east":
-                    if (deltaLon > 0) score = deltaLon - Math.abs(deltaLat); // Prioriza deltaLon positivo
+                    if (deltaLon > 0) score = deltaLon - Math.abs(deltaLat);
                     break;
                 case "west":
-                    if (deltaLon < 0) score = -deltaLon - Math.abs(deltaLat); // Prioriza deltaLon negativo (maior -deltaLon)
+                    if (deltaLon < 0) score = -deltaLon - Math.abs(deltaLat);
                     break;
-                default: continue; // Direção inválida
+                default: continue;
             }
 
-            if (score > 0 && score > bestScore) { // Apenas considera se o score for positivo e melhor que o anterior
+            if (score > 0 && score > bestScore) {
                 bestScore = score;
                 bestNeighbor = neighbor;
             }
         }
-        // if (bestNeighbor == null) {
-        //     System.out.println("FIND_NEIGHBOR: Nenhum vizinho encontrado de " + sourceNodeId + " na direção " + targetDirection);
-        // }
         return bestNeighbor;
     }
 
@@ -506,5 +496,5 @@ public class Simulator implements Runnable {
     public Statistics getStats() {
         return this.stats;
     }
-
+    public double getCurrentTime() { return this.time; }
 }

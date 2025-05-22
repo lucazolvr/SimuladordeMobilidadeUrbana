@@ -5,106 +5,139 @@ import org.aiacon.simuladordemobilidadeurbana.simulation.Configuration;
 import org.aiacon.simuladordemobilidadeurbana.simulation.Simulator;
 import org.aiacon.simuladordemobilidadeurbana.visualization.Visualizer;
 import org.aiacon.simuladordemobilidadeurbana.io.JsonParser;
+
 import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.scene.Scene;
+import javafx.scene.layout.Pane;
+import javafx.scene.text.Text;
 import javafx.stage.Stage;
-import javafx.application.Platform; // Import para Platform.exit()
-import javafx.scene.Scene;        // Para cenas de erro, se necessário
-import javafx.scene.layout.Pane;   // Para cenas de erro
-import javafx.scene.text.Text;    // Para cenas de erro
 
 import java.io.InputStream;
+import java.net.URL; // Para obter o caminho do recurso de forma mais robusta
 
+/**
+ * Classe principal da aplicação JavaFX para o Simulador de Mobilidade Urbana.
+ * Responsável por inicializar o grafo, as configurações da simulação,
+ * o simulador e a interface gráfica do visualizador.
+ */
 public class HelloApplication extends Application {
 
-    private Simulator simulator; // Tornar o simulador uma variável de instância
-    private Thread simulationThread; // Para controlar a thread da simulação
+    private Simulator simulator;
+    private Thread simulationThread;
 
+    /**
+     * Ponto de entrada principal para a aplicação JavaFX.
+     * Este método é chamado após a inicialização do sistema JavaFX.
+     *
+     * @param primaryStage O palco principal para esta aplicação, sobre o qual
+     * a cena da aplicação pode ser definida.
+     */
     @Override
-    public void start(Stage primaryStage) { // Removido 'throws Exception' desnecessário se tratado
+    public void start(Stage primaryStage) {
         System.out.println("HELLO_APPLICATION_START: Iniciando a aplicação...");
-        Graph graph = null;
+        Graph graph; // Declarado aqui para estar no escopo do try-catch e após
+
         try {
-            InputStream jsonInputStream = getClass().getResourceAsStream("/mapa/CentroTeresinaPiauiBrazil.json");
+            // Carregamento do arquivo JSON do mapa
+            String resourcePath = "/mapa/CentroTeresinaPiauiBrazil.json";
+            InputStream jsonInputStream = getClass().getResourceAsStream(resourcePath);
             if (jsonInputStream == null) {
-                System.err.println("Erro Crítico: Não foi possível localizar o arquivo JSON do mapa: /mapa/CentroTeresinaPiauiBrazil.json");
-                mostrarErroFatal(primaryStage, "Erro Crítico: Arquivo de mapa não encontrado.");
+                String errorMessage = "Erro Crítico: Não foi possível localizar o arquivo JSON do mapa: " + resourcePath;
+                System.err.println(errorMessage);
+                mostrarErroFatal(primaryStage, errorMessage);
                 return;
             }
-            graph = JsonParser.loadGraphFromStream(jsonInputStream);
+            graph = JsonParser.loadGraphFromStream(jsonInputStream); // Método estático parse
+            System.out.println("HELLO_APPLICATION_START: Grafo carregado com sucesso.");
+
         } catch (Exception e) {
-            System.err.println("Erro Crítico ao carregar o grafo do JSON: " + e.getMessage());
+            String errorMessage = "Erro Crítico ao carregar o grafo do JSON: " + e.getMessage();
+            System.err.println(errorMessage);
             e.printStackTrace();
-            mostrarErroFatal(primaryStage, "Erro Crítico ao carregar o mapa: " + e.getMessage());
+            mostrarErroFatal(primaryStage, errorMessage);
             return;
         }
-
 
         if (graph == null || graph.getNodes() == null || graph.getNodes().isEmpty()) {
-            System.err.println("Erro Crítico: Falha ao carregar o grafo ou grafo está vazio.");
-            mostrarErroFatal(primaryStage, "Erro Crítico: Falha ao carregar dados do mapa.");
+            String errorMessage = "Erro Crítico: Falha ao carregar o grafo ou o grafo está vazio.";
+            System.err.println(errorMessage);
+            mostrarErroFatal(primaryStage, errorMessage);
             return;
         }
-        System.out.println("HELLO_APPLICATION_START: Grafo carregado com sucesso.");
 
         // Configurar a simulação
         Configuration config = new Configuration();
-        config.setTrafficLightMode(2); // Ex: 1 para FixedTime, 2 para AdaptiveQueue, 3 para EnergySaving
-        config.setVehicleGenerationRate(0.1); // Ex: 0.5 veículos por segundo (1 a cada 2 segundos)
-        config.setSimulationDuration(120); // Ex: 2 horas de simulação
-        config.setRedirectThreshold(5);     // Ex: Limiar para redirecionamento
+        config.setTrafficLightMode(3);           // 1:Fixo, 2:AdaptativoFila, 3:EconomiaEnergia
+        config.setVehicleGenerationRate(0.2);    // Veículos por segundo
+        config.setRedirectThreshold(10);         // Limiar para redirecionamento
+        config.setPeakHour(false);               // Simular horário de pico ou não
 
-        System.out.println("HELLO_APPLICATION_START: Configuração da simulação carregada. Modo Semáforo: " + config.getTrafficLightMode());
+        // --- Definição da Duração da Simulação e Parada da Geração de Veículos ---
+        double totalSimulationTime = 600.0; // Duração total da simulação em segundos (ex: 5 minutos)
+        double stopGeneratingVehiclesAfter = 300.0; // Para de gerar veículos após 100s
 
-        // Criar o simulador e visualizador
-        // 'simulator' agora é uma variável de instância
+        config.setSimulationDuration(totalSimulationTime);
+        config.setVehicleGenerationStopTime(stopGeneratingVehiclesAfter);
+        // -----------------------------------------------------------------------
+
+        System.out.println("HELLO_APPLICATION_START: Configuração da simulação carregada. Modo Semáforo: " + config.getTrafficLightMode() +
+                ", Duração Total: " + totalSimulationTime + "s, Parar Geração em: " + stopGeneratingVehiclesAfter + "s");
+
         this.simulator = new Simulator(graph, config);
-        Visualizer visualizer = new Visualizer(graph, this.simulator); // Passa a instância do simulador
+        Visualizer visualizer = new Visualizer(graph, this.simulator);
 
-        // Configurar o visualizador no palco principal do JavaFX
         try {
-            visualizer.start(primaryStage); // O método start do Visualizer configurará a cena
+            visualizer.start(primaryStage);
             System.out.println("HELLO_APPLICATION_START: Visualizador iniciado.");
         } catch (Exception e) {
-            System.err.println("Erro Crítico ao iniciar o Visualizer: " + e.getMessage());
+            String errorMessage = "Erro Crítico ao iniciar o Visualizer: " + e.getMessage();
+            System.err.println(errorMessage);
             e.printStackTrace();
-            mostrarErroFatal(primaryStage, "Erro Crítico ao iniciar a visualização: " + e.getMessage());
+            mostrarErroFatal(primaryStage, errorMessage);
             return;
         }
 
-
-        // Iniciar a simulação em uma nova thread
-        simulationThread = new Thread(this.simulator); // Simulator agora é Runnable
-        simulationThread.setName("SimulationThread");
-        simulationThread.setDaemon(true); // Importante para que a JVM feche quando a UI fechar
+        simulationThread = new Thread(this.simulator);
+        simulationThread.setName("SimulationLoopThread");
+        simulationThread.setDaemon(true);
         simulationThread.start();
         System.out.println("HELLO_APPLICATION_START: Thread da simulação iniciada.");
     }
 
+    /**
+     * Exibe uma janela de erro fatal e encerra a aplicação.
+     * @param stage O palco principal para exibir a cena de erro.
+     * @param mensagem A mensagem de erro a ser exibida.
+     */
     private void mostrarErroFatal(Stage stage, String mensagem) {
-        Pane errorPane = new Pane(new Text(mensagem));
-        Scene errorScene = new Scene(errorPane, 400, 100);
+        Pane errorPane = new Pane(new Text(20, 50, mensagem)); // Adiciona margens para o texto
+        Scene errorScene = new Scene(errorPane, Math.max(400, mensagem.length() * 7), 100); // Ajusta largura da cena
         stage.setTitle("Erro na Aplicação");
         stage.setScene(errorScene);
         stage.show();
-        // Considerar Platform.exit() aqui também se o erro impedir a continuação
+        // Adicionado Platform.exit() para garantir que a aplicação feche após um erro fatal na inicialização
+        Platform.exit();
     }
 
+    /**
+     * Este método é chamado quando a aplicação JavaFX está sendo encerrada.
+     * É usado para parar a thread da simulação de forma graciosa.
+     */
     @Override
-    public void stop() throws Exception {
+    public void stop() {
         System.out.println("HELLO_APPLICATION_STOP: Método stop() chamado, encerrando a aplicação...");
-
-        //running = false; // Sinaliza para a thread de atualização do Visualizer parar (se o Visualizer tiver essa flag)
 
         if (simulator != null) {
             System.out.println("HELLO_APPLICATION_STOP: Chamando stopSimulation() do simulador.");
-            simulator.stopSimulation(); // Sinaliza para a thread do simulador parar seu loop
+            simulator.stopSimulation();
         }
 
         if (simulationThread != null && simulationThread.isAlive()) {
             System.out.println("HELLO_APPLICATION_STOP: Tentando interromper a thread da simulação...");
-            simulationThread.interrupt(); // Interrompe a thread se ela estiver em sleep/wait
+            simulationThread.interrupt();
             try {
-                simulationThread.join(1000); // Espera até 1 segundo pela thread terminar
+                simulationThread.join(1000); // Espera até 1 segundo
                 if (simulationThread.isAlive()) {
                     System.err.println("HELLO_APPLICATION_STOP: Thread da simulação ainda está ativa após join().");
                 } else {
@@ -112,20 +145,23 @@ public class HelloApplication extends Application {
                 }
             } catch (InterruptedException e) {
                 System.err.println("HELLO_APPLICATION_STOP: Thread principal interrompida enquanto esperava pela thread da simulação.");
-                Thread.currentThread().interrupt(); // Restaura o status de interrupção
+                Thread.currentThread().interrupt();
             }
         } else {
             System.out.println("HELLO_APPLICATION_STOP: Thread da simulação não estava ativa ou era nula.");
         }
 
-        System.out.println("HELLO_APPLICATION_STOP: Chamando super.stop().");
-        super.stop(); // Chama o método stop da classe pai (Application)
-        System.out.println("HELLO_APPLICATION_STOP: Processo de encerramento da aplicação JavaFX (super.stop) concluído.");
-        // Platform.exit(); // Garante que a aplicação JavaFX termine.
-        // System.exit(0); // Força o encerramento da JVM se necessário.
+        System.out.println("HELLO_APPLICATION_STOP: Processo de encerramento da aplicação JavaFX concluído.");
+        // Platform.exit() e System.exit(0) geralmente não são necessários aqui,
+        // pois o JavaFX gerencia o encerramento da JVM quando a última janela é fechada,
+        // especialmente se as threads daemon foram configuradas corretamente.
     }
 
+    /**
+     * Ponto de entrada principal do programa Java.
+     * @param args Argumentos de linha de comando (não utilizados).
+     */
     public static void main(String[] args) {
-        launch(args); // Iniciar a aplicação JavaFX
+        launch(args);
     }
 }
