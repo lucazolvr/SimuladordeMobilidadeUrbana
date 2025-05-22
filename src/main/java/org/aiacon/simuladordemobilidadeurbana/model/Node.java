@@ -36,4 +36,18 @@ public class Node {
     public CustomLinkedList<Edge> getEdges() {
         return edges; // Retorna a referência da CustomLinkedList
     }
+    // Dentro da classe Node.java
+// private boolean isTrafficLight; // Se você mudar para private
+
+    public void setIsTrafficLight(boolean isTrafficLight) {
+        this.isTrafficLight = isTrafficLight;
+    }
+
+    public double getLatitude() {
+        return latitude;
+    }
+
+    public double getLongitude() {
+        return longitude;
+    }
 }

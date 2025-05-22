@@ -1,126 +1,198 @@
 package org.aiacon.simuladordemobilidadeurbana.model;
 
-import java.util.LinkedList;
-import java.util.Queue;
+import org.aiacon.simuladordemobilidadeurbana.control.AdaptiveQueueStrategy;
+import org.aiacon.simuladordemobilidadeurbana.control.EnergySavingStrategy;
+import org.aiacon.simuladordemobilidadeurbana.control.FixedTimeStrategy;
+import org.aiacon.simuladordemobilidadeurbana.control.TrafficLightControlStrategy;
+import org.aiacon.simuladordemobilidadeurbana.simulation.Configuration; // Importe Configuration
+import org.aiacon.simuladordemobilidadeurbana.simulation.NextPhaseDecision;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class TrafficLight {
-    private String nodeId;       // ID do nó associado ao semáforo
-    private int mode;            // 1: fixo, 2: espera, 3: economia de energia
-    private String direction;    // Direção principal (ex.: north, south, east, west)
-    private int greenTime;       // Tempo do sinal verde (segundos)
-    private int yellowTime;      // Tempo do sinal amarelo (segundos)
-    private int redTime;         // Tempo do sinal vermelho (segundos)
-    private String state;        // Estado atual (green, yellow, red)
-    private double timeInCycle;  // Tempo atual dentro do ciclo
-    private Queue<Vehicle>[] directionQueues; // Filas de veículos por direção (north, south, east, west)
+    private String nodeId;
+    private int mode;
+    private String initialJsonDirection;
 
-    // Construtor
-    public TrafficLight(String nodeId, String direction, int mode) {
+    private LightPhase currentPhase;
+    private double phaseTimer;
+
+    private Queue[] directionQueues;
+    private Map<String, Integer> directionNameToIndexMap;
+
+    private TrafficLightControlStrategy controlStrategy;
+    private boolean peakHourStatus = false;
+    private Configuration config; // Armazena a referência para a configuração
+
+    public TrafficLight(String nodeId, String jsonOriginalDirection, Configuration config) { // Recebe Configuration
         this.nodeId = nodeId;
-        this.direction = direction;
-        this.mode = mode;
+        this.initialJsonDirection = jsonOriginalDirection != null ? jsonOriginalDirection.toLowerCase() : "unknown";
+        this.config = config;
+        this.mode = config.getTrafficLightMode();
 
-        // Ciclo padrão do semáforo
-        this.greenTime = 15; // Tempo padrão do sinal verde
-        this.yellowTime = 3; // Tempo padrão do sinal amarelo
-        this.redTime = 15;   // Tempo padrão do sinal vermelho
-        this.state = "red";  // Estado inicial
-        this.timeInCycle = 0.0;
-
-        // Inicializar filas para as quatro direções
-        directionQueues = new LinkedList[4];
+        this.directionQueues = new Queue[4];
         for (int i = 0; i < 4; i++) {
-            directionQueues[i] = new LinkedList<>();
+            this.directionQueues[i] = new Queue();
         }
-    }
 
-    // Getters e Setters
-    public String getNodeId() {
-        return nodeId;
-    }
+        this.directionNameToIndexMap = new HashMap<>();
+        directionNameToIndexMap.put("north", 0);
+        directionNameToIndexMap.put("east", 1);
+        directionNameToIndexMap.put("south", 2);
+        directionNameToIndexMap.put("west", 3);
 
-    public int getMode() {
-        return mode;
-    }
-
-    public void setMode(int mode) {
-        this.mode = mode;
-    }
-
-    public String getState() {
-        return state;
-    }
-
-    public void setCycleTimes(int greenTime, int yellowTime, int redTime) {
-        this.greenTime = greenTime;
-        this.yellowTime = yellowTime;
-        this.redTime = redTime;
-    }
-
-    /**
-     * Retorna o tamanho da fila de uma direção específica.
-     */
-    public int getDirectionQueueSize(int directionIndex) {
-        if (directionIndex < 0 || directionIndex >= directionQueues.length) {
-            return 0; // Direção inválida
+        switch (this.mode) {
+            case 1:
+                this.controlStrategy = new FixedTimeStrategy(
+                        config.getFixedGreenTime(),
+                        config.getFixedYellowTime()
+                );
+                break;
+            case 2:
+                this.controlStrategy = new AdaptiveQueueStrategy(
+                        config.getAdaptiveBaseGreen(),
+                        config.getAdaptiveYellowTime(),
+                        config.getAdaptiveMaxGreen(),       // Passando o teto MÁXIMO de verde
+                        config.getAdaptiveQueueThreshold(),
+                        config.getAdaptiveMinGreenTime(),   // Passando o MÍNIMO de verde
+                        config.getAdaptiveIncrement()       // Passando o incremento por veículo
+                );
+                break;
+            case 3:
+                this.controlStrategy = new EnergySavingStrategy(
+                        config.getEnergySavingBaseGreen(),
+                        config.getEnergySavingYellowTime(),
+                        config.getEnergySavingMinGreen(),
+                        config.getEnergySavingThreshold(),
+                        config.getEnergySavingMaxGreenTime() // Passando o teto máximo
+                );
+                break;
+            default:
+                System.err.println("TRAFFIC_LIGHT_INIT: Modo de semáforo inválido (" + mode + ") para nó " + nodeId + ". Usando FixedTime por padrão.");
+                this.controlStrategy = new FixedTimeStrategy(
+                        config.getFixedGreenTime(),
+                        config.getFixedYellowTime()
+                );
+                break;
         }
-        return directionQueues[directionIndex].size();
-    }
 
-    /**
-     * Adiciona um veículo à fila de uma direção específica.
-     */
-    public void addVehicleToQueue(int directionIndex, Vehicle vehicle) {
-        if (directionIndex >= 0 && directionIndex < directionQueues.length) {
-            directionQueues[directionIndex].add(vehicle);
-        }
-    }
-
-    /**
-     * Atualiza o estado do semáforo, as filas e gerencia o ciclo atual.
-     */
-    public void update(double deltaTime, int queueSizeNorth, int queueSizeSouth, int queueSizeEast, int queueSizeWest, boolean isPeakHour) {
-        // Atualizar tempos do ciclo com base no horário de pico
-        if (isPeakHour) {
-            this.greenTime = 20;
-            this.redTime = 20;
+        if (this.controlStrategy != null) {
+            this.controlStrategy.initialize(this);
         } else {
-            this.greenTime = 15;
-            this.redTime = 15;
+            System.err.println("TRAFFIC_LIGHT_INIT_FATAL: controlStrategy não foi instanciada para o nó " + nodeId);
+            setCurrentPhase(LightPhase.NS_GREEN_EW_RED, config.getFixedGreenTime());
         }
 
-        // Atualiza o tempo dentro do ciclo
-        timeInCycle += deltaTime;
-
-        // Alterna o estado do semáforo com base no ciclo
-        double cycleDuration = greenTime + yellowTime + redTime;
-
-        if (timeInCycle <= greenTime) {
-            state = "green";
-        } else if (timeInCycle <= greenTime + yellowTime) {
-            state = "yellow";
-        } else if (timeInCycle <= cycleDuration) {
-            state = "red";
-        } else {
-            timeInCycle = 0.0; // Reinicia o ciclo
+        if (this.currentPhase == null) {
+            // A estratégia DEVE definir a fase inicial. Se não, logar e definir um padrão.
+            System.err.println("TRAFFIC_LIGHT_INIT_WARN: Estratégia não definiu fase inicial para o nó " + nodeId + ". Definindo NS_GREEN_EW_RED como padrão.");
+            setCurrentPhase(LightPhase.NS_GREEN_EW_RED, config.getFixedGreenTime());
+            logPhaseChange(); // Loga a fase de fallback
         }
     }
 
-    /**
-     * Remove o primeiro veículo da fila de uma direção específica (se possível).
-     */
-    public Vehicle popVehicleFromQueue(int directionIndex) {
-        if (directionIndex >= 0 && directionIndex < directionQueues.length && !directionQueues[directionIndex].isEmpty()) {
-            return directionQueues[directionIndex].poll(); // Remove e retorna o primeiro veículo da fila
+    public String getNodeId() { return nodeId; }
+    public LightPhase getCurrentPhase() { return currentPhase; }
+    public String getInitialJsonDirection() { return initialJsonDirection; }
+    public boolean isPeakHourEnabled() { return peakHourStatus; }
+    public Configuration getConfiguration() { return config; }
+
+    public void setCurrentPhase(LightPhase phase, double duration) {
+        this.currentPhase = phase;
+        this.phaseTimer = duration;
+    }
+
+    public Integer getDirectionIndex(String directionName) {
+        if (directionName == null) return null;
+        return directionNameToIndexMap.get(directionName.toLowerCase());
+    }
+
+    public int[] getAllQueueSizes() {
+        int[] sizes = new int[4];
+        for (int i = 0; i < 4; i++) {
+            sizes[i] = (directionQueues[i] != null) ? directionQueues[i].size() : 0;
+        }
+        return sizes;
+    }
+
+    public void addVehicleToQueue(String directionName, Vehicle vehicle) {
+        Integer index = getDirectionIndex(directionName);
+        if (index != null && index >= 0 && index < directionQueues.length) {
+            if (directionQueues[index] == null) {
+                directionQueues[index] = new Queue();
+            }
+            directionQueues[index].enqueue(vehicle);
+        } else {
+            System.err.println("TrafficLight " + nodeId + ": Não foi possível encontrar índice para direção '" + directionName + "' ao tentar enfileirar veículo " + vehicle.getId());
+        }
+    }
+
+    public Vehicle popVehicleFromQueue(String directionName) {
+        Integer index = getDirectionIndex(directionName);
+        if (index != null && index >= 0 && index < directionQueues.length &&
+                directionQueues[index] != null && !directionQueues[index].isEmpty()) {
+            return directionQueues[index].dequeue();
         }
         return null;
     }
 
-    /**
-     * Imprime o estado atual do semáforo para fins de depuração.
-     */
-    public void logState() {
-        System.out.printf("Semáforo no nó %s -> Estado: %s, Tempo no Ciclo: %.1f%n",
-                nodeId, state, timeInCycle);
+    public void update(double deltaTime, boolean isPeakHour) {
+        this.peakHourStatus = isPeakHour;
+        this.phaseTimer -= deltaTime;
+
+        if (this.phaseTimer <= 0) {
+            if (this.controlStrategy == null) {
+                System.err.println("TrafficLight " + nodeId + ": ERRO FATAL - controlStrategy é nula no método update.");
+                setCurrentPhase(LightPhase.NS_GREEN_EW_RED, config.getFixedGreenTime());
+                logPhaseChange();
+                return;
+            }
+            NextPhaseDecision decision = controlStrategy.decideNextPhase(this, deltaTime, getAllQueueSizes(), this.peakHourStatus);
+
+            if (decision != null && decision.nextPhase != null) {
+                setCurrentPhase(decision.nextPhase, decision.duration);
+                logPhaseChange();
+            } else {
+                System.err.println("TrafficLight " + nodeId + ": Estratégia retornou decisão/fase nula. Mantendo fase atual ("+this.currentPhase+") e resetando timer para um valor seguro.");
+                this.phaseTimer = config.getFixedGreenTime();
+                if (this.currentPhase == null) {
+                    setCurrentPhase(LightPhase.NS_GREEN_EW_RED, this.phaseTimer);
+                    logPhaseChange();
+                }
+            }
+        }
+    }
+
+    public String getLightStateForApproach(String approachDirection) {
+        if (controlStrategy == null) {
+            System.err.println("TrafficLight " + nodeId + ": Estratégia de controle não inicializada ao chamar getLightStateForApproach.");
+            return "red";
+        }
+        return controlStrategy.getLightStateForApproach(this, approachDirection);
+    }
+
+    private void logPhaseChange() {
+        String phaseStr = (this.currentPhase != null) ? this.currentPhase.toString() : "INDEFINIDA";
+        System.out.println("Semáforo " + nodeId + ": Nova FASE -> " + phaseStr +
+                ". Duração programada: " + String.format("%.1f", this.phaseTimer) + "s.");
+    }
+
+    public void logCurrentInternalState() {
+        String phaseStr = (this.currentPhase != null) ? this.currentPhase.toString() : "INDEFINIDA";
+        System.out.printf("Semáforo no nó %s -> Fase: %s, Timer Restante: %.1f%n",
+                nodeId, phaseStr, phaseTimer);
+    }
+
+    public synchronized int getTotalVehiclesInQueues() {
+        int total = 0;
+        if (directionQueues != null) {
+            for (int i = 0; i < directionQueues.length; i++) {
+                if (directionQueues[i] != null) {
+                    total += directionQueues[i].size();
+                }
+            }
+        }
+        return total;
     }
 }

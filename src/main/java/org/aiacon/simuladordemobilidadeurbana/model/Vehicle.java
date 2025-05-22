@@ -10,7 +10,9 @@ public class Vehicle {
     private double waitTime; // Tempo total de espera (s)
     private double position; // Posição na aresta atual (0 a 1)
     public Vehicle next; // Para lista encadeada
-
+    private double fuelConsumed;
+    private double fuelConsumptionRateMoving; // L/s em movimento
+    private double fuelConsumptionRateIdle;   // L/s em marcha lenta
     // Construtor
     public Vehicle(String id, String origin, String destination, CustomLinkedList<String> route) {
         this.id = id;
@@ -22,6 +24,10 @@ public class Vehicle {
         this.waitTime = 0.0;
         this.position = 0.0;
         this.next = null;
+        this.fuelConsumed = 0.0;
+        // Valores de exemplo, podem vir da Configuration ou ser fixos por tipo de veículo no futuro
+        this.fuelConsumptionRateMoving = 0.0005; // Ex: 0.5 ml/s em movimento (aprox. 1.8 L/hora)
+        this.fuelConsumptionRateIdle = 0.0002;
     }
 
 
@@ -82,4 +88,22 @@ public class Vehicle {
     public void setPosition(double position) {
         this.position = position;
     }
+
+    public double getFuelConsumed() {
+        return fuelConsumed;
+    }
+
+    public void incrementFuelConsumption(double consumption) {
+        this.fuelConsumed += consumption;
+    }
+
+    public double getFuelConsumptionRateMoving() {
+        return fuelConsumptionRateMoving;
+    }
+
+    public double getFuelConsumptionRateIdle() {
+        return fuelConsumptionRateIdle;
+    }
+
+
 }

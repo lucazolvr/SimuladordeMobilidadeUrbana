@@ -1,116 +1,99 @@
 package org.aiacon.simuladordemobilidadeurbana.model;
 
+import java.util.HashMap; // Importar HashMap
+import java.util.Map;    // Importar Map
+
 // Representa o grafo da rede urbana
 public class Graph {
-    private CustomLinkedList<Node> nodes;               // Lista dos nós (cruzamentos da rede)
-    private CustomLinkedList<Edge> edges;               // Lista das arestas (ruas da rede)
-    private CustomLinkedList<TrafficLight> trafficLights; // Lista dos semáforos
+    private CustomLinkedList<Node> nodesList; // Usando a CustomLinkedList refatorada
+    private CustomLinkedList<Edge> edgesList; // Usando a CustomLinkedList refatorada
+    private CustomLinkedList<TrafficLight> trafficLightsList; // Usando a CustomLinkedList refatorada
+
+    // Estrutura auxiliar permitida para busca rápida de nós por ID
+    private Map<String, Node> nodeMap;
 
     public Graph() {
-        this.nodes = new CustomLinkedList<>();
-        this.edges = new CustomLinkedList<>();
-        this.trafficLights = new CustomLinkedList<>();
+        this.nodesList = new CustomLinkedList<>();
+        this.edgesList = new CustomLinkedList<>();
+        this.trafficLightsList = new CustomLinkedList<>();
+        this.nodeMap = new HashMap<>(); // Inicializar o HashMap
     }
 
-    // Adiciona um nó ao grafo
     public void addNode(Node node) {
-        if (node != null) {
-            nodes.add(node); // Adiciona o nó à CustomLinkedList
-            System.out.println("Nó adicionado ao grafo: " + node.getId());
+        if (node != null && node.getId() != null && !node.getId().isEmpty()) {
+            if (!this.nodeMap.containsKey(node.getId())) {
+                this.nodesList.add(node); // Adiciona à sua lista personalizada
+                this.nodeMap.put(node.getId(), node); // Adiciona ao HashMap
+                // System.out.println("Nó adicionado ao grafo: " + node.getId()); // Log no JsonParser é melhor
+            } else {
+                // System.err.println("GRAPH_ADD_NODE: Tentativa de adicionar nó com ID duplicado: " + node.getId());
+            }
         } else {
-            System.err.println("Tentativa de adicionar um nó nulo ao grafo.");
+            System.err.println("GRAPH_ADD_NODE: Tentativa de adicionar um nó nulo ou com ID inválido.");
         }
     }
 
-    // Retorna todos os nós do grafo
     public CustomLinkedList<Node> getNodes() {
-        return nodes; // Retorna a CustomLinkedList com os nós
+        return this.nodesList;
     }
 
-    // Adiciona uma aresta (rua) ao grafo
-    public void addEdge(Edge edge) {
-        if (edge != null) {
-            edges.add(edge); // Adiciona a aresta à CustomLinkedList
-            System.out.println("Aresta adicionada ao grafo: origem=" + edge.getSource() + ", destino=" + edge.getDestination());
-        } else {
-            System.err.println("Tentativa de adicionar uma aresta nula ao grafo.");
-        }
-    }
-
-    // Retorna todas as arestas do grafo
-    public CustomLinkedList<Edge> getEdges() {
-        return edges; // Retorna a CustomLinkedList com as arestas
-    }
-
-    // Adiciona um semáforo ao grafo
-    public void addTrafficLight(TrafficLight trafficLight) {
-        if (trafficLight != null) {
-            trafficLights.add(trafficLight); // Adiciona o semáforo
-            System.out.println("Semáforo adicionado ao grafo: " + trafficLight);
-        } else {
-            System.err.println("Tentativa de adicionar um semáforo nulo ao grafo.");
-        }
-    }
-
-    // Retorna todos os semáforos do grafo
-    public CustomLinkedList<TrafficLight> getTrafficLights() {
-        return trafficLights; // Retorna a CustomLinkedList com os semáforos
-    }
-
-    // Busca um nó específico no grafo pelo seu ID
+    // Busca um nó específico no grafo pelo seu ID usando o HashMap
     public Node getNode(String nodeId) {
         if (nodeId == null || nodeId.isEmpty()) {
-            System.err.println("ID do nó inválido.");
-            return null; // Retorna null para nodeId inválido
+            return null;
         }
-
-        // Itera diretamente pela CustomLinkedList para encontrar o nó
-        for (int i = 0; i < nodes.size(); i++) {
-            Node node = nodes.get(i); // Acessa o nó pelo índice
-            if (node.getId().equals(nodeId)) {
-                return node; // Retorna o nó se o ID for correspondente
-            }
-        }
-
-        System.err.println("Nó com ID " + nodeId + " não encontrado.");
-        return null; // Retorna null se não encontrar
+        return this.nodeMap.get(nodeId); // Busca O(1) em média
     }
 
-    // Verifica se o grafo contém um nó com o ID especificado
+    public void addEdge(Edge edge) {
+        if (edge != null) {
+            this.edgesList.add(edge);
+            // System.out.println("Aresta adicionada ao grafo: origem=" + edge.getSource() + ", destino=" + edge.getDestination());
+        } else {
+            System.err.println("GRAPH_ADD_EDGE: Tentativa de adicionar uma aresta nula.");
+        }
+    }
+
+    public CustomLinkedList<Edge> getEdges() {
+        return this.edgesList;
+    }
+
+    public void addTrafficLight(TrafficLight trafficLight) {
+        if (trafficLight != null) {
+            this.trafficLightsList.add(trafficLight);
+            // System.out.println("Semáforo adicionado ao grafo: " + trafficLight);
+        } else {
+            System.err.println("GRAPH_ADD_TRAFFIC_LIGHT: Tentativa de adicionar um semáforo nulo.");
+        }
+    }
+
+    public CustomLinkedList<TrafficLight> getTrafficLights() {
+        return this.trafficLightsList;
+    }
+
     public boolean containsNode(String nodeId) {
         if (nodeId == null || nodeId.isEmpty()) {
-            return false; // Retorna false para IDs inválidos
+            return false;
         }
-
-        // Itera pelos nós e verifica a existência
-        for (int i = 0; i < nodes.size(); i++) {
-            Node node = nodes.get(i);
-            if (node.getId().equals(nodeId)) {
-                return true; // Retorna true se o nó existir
-            }
-        }
-
-        return false; // Caso nenhum nó corresponda ao ID
+        return this.nodeMap.containsKey(nodeId); // O(1) em média
     }
 
-    // Verifica se o grafo contém uma aresta entre dois nós
     public boolean containsEdge(String sourceId, String targetId) {
         if (sourceId == null || targetId == null || sourceId.isEmpty() || targetId.isEmpty()) {
-            return false; // IDs inválidos não podem ter conexão
+            return false;
         }
-
-        for (int i = 0; i < edges.size(); i++) {
-            Edge edge = edges.get(i);
-
-            // Verifica conexões unidirecionais e bidirecionais
+        for (Edge edge : this.edgesList) {
+            if (edge == null) continue;
+            // Checagem primária
             if (edge.getSource().equals(sourceId) && edge.getDestination().equals(targetId)) {
                 return true;
             }
-            if (!edge.isOneway() && edge.getSource().equals(targetId) && edge.getDestination().equals(sourceId)) {
-                return true; // Conexão bidirecional
-            }
+            // Se a lógica de bidirecionalidade ainda for necessária aqui (idealmente o JsonParser já trata isso
+            // criando duas arestas unidirecionais para 'oneway:false')
+            // if (!edge.isOneway() && edge.getSource().equals(targetId) && edge.getDestination().equals(sourceId)) {
+            // return true;
+            // }
         }
-
-        return false; // Caso nenhuma aresta atenda aos critérios
+        return false;
     }
 }

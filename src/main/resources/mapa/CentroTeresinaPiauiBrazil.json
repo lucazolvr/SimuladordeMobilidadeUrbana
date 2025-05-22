@@ -11111,7 +11111,7 @@
       "target": "1521375783",
       "length": 98.61633319413971,
       "travel_time": 0.0,
-      "oneway": true,
+      "oneway": false,
       "maxspeed": 40.0
     },
     {
