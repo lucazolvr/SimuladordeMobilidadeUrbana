@@ -1,3 +1,4 @@
+
 package org.aiacon.simuladordemobilidadeurbana.visualization;
 
 import org.aiacon.simuladordemobilidadeurbana.model.Edge;
@@ -28,6 +29,12 @@ import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
 
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+
+
+
+
 /**
  * Classe responsável por visualizar o grafo e a simulação usando JavaFX.
  */
@@ -50,7 +57,10 @@ public class Visualizer extends Application {
     private Pane pane;
     private Map<String, Group> trafficLightNodeVisuals;
     private Map<String, Circle> regularNodeVisuals;
-    private Map<String, Circle> vehicleVisuals;
+    private Map<String, ImageView> vehicleVisuals;
+
+    private Image carroImage;
+
 
     private volatile boolean running = true;
 
@@ -106,6 +116,8 @@ public class Visualizer extends Application {
         // Adicionar o texto para o congestionamento
         congestionText = new Text(10, ALTURA_TELA - 10, "Congestionamento: N/A"); // Posição de exemplo
         pane.getChildren().add(congestionText);
+
+        this.carroImage = new Image(getClass().getResourceAsStream("/carros/carroofc.png"));
 
         calcularParametrosDeTransformacao();
         desenharElementosEstaticos();
@@ -203,9 +215,20 @@ public class Visualizer extends Application {
                     Point2D p1 = transformarCoordenadas(sourceNode.getLatitude(), sourceNode.getLongitude());
                     Point2D p2 = transformarCoordenadas(targetNode.getLatitude(), targetNode.getLongitude());
                     Line line = new Line(p1.getX(), p1.getY(), p2.getX(), p2.getY());
-                    line.setStroke(Color.rgb(100, 100, 100, 0.8));
-                    line.setStrokeWidth(1.8);
+                    line.setStroke(Color.BLACK); // Define a cor como preto
+                    line.setStrokeWidth(5.0);    // Aumenta a espessura para 3.0 (ajuste conforme necessário)
                     pane.getChildren().add(line);
+
+                    // Linha amarela tracejada por cima da preta
+                    Line dashedLine = new Line(p1.getX(), p1.getY(), p2.getX(), p2.getY());
+                    dashedLine.setStroke(Color.YELLOW);
+                    dashedLine.setStrokeWidth(0.5);
+                    dashedLine.getStrokeDashArray().addAll(10.0, 10.0); // 10 px traço, 10 px espaço
+                    dashedLine.setStrokeLineCap(javafx.scene.shape.StrokeLineCap.ROUND); // pontas suaves
+
+                    pane.getChildren().add(dashedLine);
+
+
                 }
             }
         }
@@ -243,11 +266,7 @@ public class Visualizer extends Application {
                     lightVisualsMap.put(node.getId(), new TrafficLightDisplay(nsIndicator, ewIndicator));
                     // Não precisa mais do trafficLightNodeVisuals se lightVisualsMap guarda os componentes
                 } else {
-                    Circle nodeCircle = new Circle(p.getX(), p.getY(), 3, Color.ROYALBLUE);
-                    nodeCircle.setStroke(Color.NAVY);
-                    nodeCircle.setStrokeWidth(0.5);
-                    regularNodeVisuals.put(node.getId(), nodeCircle);
-                    pane.getChildren().add(nodeCircle);
+
                 }
             }
         }
@@ -297,7 +316,7 @@ public class Visualizer extends Application {
         CustomLinkedList<Vehicle> currentVehicles = simulator.getVehicles();
         if (currentVehicles == null) return;
 
-        Map<String, Circle> newVehicleVisualsMap = new HashMap<>();
+        Map<String, ImageView> newVehicleVisualsMap = new HashMap<>();
         List<javafx.scene.Node> childrenToAdd = new ArrayList<>();
         List<javafx.scene.Node> childrenToRemove = new ArrayList<>();
 
@@ -328,16 +347,18 @@ public class Visualizer extends Application {
                 }
             }
 
-            Circle vehicleCircle = vehicleVisuals.get(vehicle.getId());
-            if (vehicleCircle == null) {
-                vehicleCircle = new Circle(3.5, Color.DEEPSKYBLUE);
-                vehicleCircle.setStroke(Color.BLACK);
-                vehicleCircle.setStrokeWidth(0.6);
-                childrenToAdd.add(vehicleCircle);
+            ImageView vehicleImageView = vehicleVisuals.get(vehicle.getId());
+            if (vehicleImageView == null) {
+                vehicleImageView = new ImageView(carroImage);
+                vehicleImageView.setFitWidth(14);   // ajuste conforme necessário
+                vehicleImageView.setFitHeight(14);  // ajuste conforme necessário
+                vehicleImageView.setPreserveRatio(true);
+                childrenToAdd.add(vehicleImageView);
             }
-            vehicleCircle.setCenterX(vehiclePos.getX());
-            vehicleCircle.setCenterY(vehiclePos.getY());
-            newVehicleVisualsMap.put(vehicle.getId(), vehicleCircle);
+            vehicleImageView.setX(vehiclePos.getX() - vehicleImageView.getFitWidth() / 2);
+            vehicleImageView.setY(vehiclePos.getY() - vehicleImageView.getFitHeight() / 2);
+            newVehicleVisualsMap.put(vehicle.getId(), vehicleImageView);
+
         }
 
         for (String existingId : vehicleVisuals.keySet()) {
